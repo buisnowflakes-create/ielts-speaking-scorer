@@ -1,6 +1,6 @@
 # IELTS Speaking Scorer — LangGo
 
-Tool chấm điểm Speaking IELTS bằng checkbox, tạo feedback và xuất HTML/PDF.
+Tool tạo feedback Speaking IELTS bằng checkbox, xuất HTML/PDF.
 
 ---
 
@@ -10,7 +10,7 @@ Tool chấm điểm Speaking IELTS bằng checkbox, tạo feedback và xuất HT
 ielts-scorer/
 ├── index.html   ← Giao diện chính (HTML thuần)
 ├── style.css    ← Toàn bộ CSS (dark theme + print styles)
-├── data.js      ← Dữ liệu: presets, IPA dict, band scale
+├── data.js      ← Dữ liệu: presets, IPA dict, cấu hình AI
 ├── app.js       ← Logic: render, scoring, IPA, generate, export
 └── README.md    ← File này
 ```
@@ -100,16 +100,6 @@ const IPA_DICT = {
 };
 ```
 
-### Điều chỉnh ngưỡng Band → `data.js`
-
-```js
-const BAND_SCALE = [
-  { min: 0.90, band: 9.0, desc: 'Expert' },
-  { min: 0.80, band: 8.0, desc: 'Very Good' },
-  // Chỉnh min để calibrate lại thang điểm
-];
-```
-
 ### Thêm mẫu câu động viên → `data.js`
 
 ```js
@@ -131,7 +121,6 @@ Các hàm chính:
 | Hàm | Mô tả |
 |-----|-------|
 | `renderAllLists()` | Render toàn bộ checklist từ PRESETS |
-| `updateScores()` | Tính điểm real-time khi tick checkbox |
 | `generate()` | Tạo HTML feedback |
 | `fetchIPA()` | Tra phiên âm IPA |
 | `addErrRow()` | Thêm dòng lỗi cụ thể (LR/GRA) |
@@ -163,9 +152,7 @@ const AI_PROMPTS = {
 
 ## Tính năng
 
-- ✅ Chấm điểm checkbox real-time: good = +1, bad = -1
-- ✅ Live score dashboard: 4 progress bars + band meter
-- ✅ Ước tính Band Score (2.0 – 9.0)
+- ✅ Chọn nhận xét bằng checkbox (Điểm tốt / Cần cải thiện)
 - ✅ Thêm lỗi từ vựng / ngữ pháp cụ thể (sai → đúng + giải thích)
 - ✅ Tra IPA tự động (local dict + dictionaryapi.dev)
 - ✅ Trợ lý AI (Google Gemini): sửa lỗi theo dòng, quét lỗi từ transcript, trau chuốt feedback

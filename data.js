@@ -187,22 +187,6 @@ const ENC_LIST = [
 ];
 
 /* ----------------------------------------------------------------
-   BAND SCALE
-   ratio = tổng điểm / tổng điểm tối đa
-   Điều chỉnh ngưỡng min nếu muốn calibrate lại thang điểm.
-   ---------------------------------------------------------------- */
-const BAND_SCALE = [
-  { min: 0.90, band: 9.0, desc: 'Expert / Chuyên gia'        },
-  { min: 0.80, band: 8.0, desc: 'Very Good'                  },
-  { min: 0.70, band: 7.0, desc: 'Good'                       },
-  { min: 0.60, band: 6.0, desc: 'Competent'                  },
-  { min: 0.50, band: 5.0, desc: 'Modest'                     },
-  { min: 0.38, band: 4.0, desc: 'Limited'                    },
-  { min: 0.25, band: 3.0, desc: 'Extremely Limited'          },
-  { min: 0,    band: 2.0, desc: 'Intermittent'               },
-];
-
-/* ----------------------------------------------------------------
    IPA LOCAL DICTIONARY
    Tra offline (không cần internet). Ưu tiên hơn dictionaryapi.dev.
    Key = từ viết thường, value = phiên âm Oxford UK.
@@ -403,7 +387,7 @@ Nếu không tìm thấy lỗi nào, trả về mảng rỗng [].`;
 Hãy VIẾT LẠI phần văn xuôi tiếng Việt cho mượt mà, rõ ràng, ấm áp và mang tính khích lệ hơn, nhưng vẫn chuyên nghiệp.
 
 QUY TẮC BẮT BUỘC:
-- GIỮ NGUYÊN 100% mọi thẻ HTML, tên class, thuộc tính, cấu trúc, bảng điểm, mọi con số và band score.
+- GIỮ NGUYÊN 100% mọi thẻ HTML, tên class, thuộc tính và cấu trúc.
 - GIỮ NGUYÊN mọi từ/cụm tiếng Anh và phiên âm IPA; KHÔNG dịch chúng.
 - KHÔNG thay đổi nội dung bên trong các thẻ <span class="fb-err-mark">, <span class="fb-fix-mark">, <span class="fb-word-mark">, <span class="fb-ipa-mark"> và mọi thẻ <a>.
 - KHÔNG thêm hoặc bớt mục, KHÔNG bịa thêm thông tin.

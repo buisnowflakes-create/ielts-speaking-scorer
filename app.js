@@ -1,7 +1,7 @@
 /* ================================================================
    app.js — IELTS Speaking Scorer
    Toàn bộ logic: render, scoring, IPA, generate, export, draft
-   Depends on: data.js (PRESETS, ENC_LIST, BAND_SCALE, IPA_DICT)
+   Depends on: data.js (PRESETS, ENC_LIST, IPA_DICT)
    ================================================================ */
 
 /* ================================================================
@@ -10,7 +10,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('hv-date').value = todayStr();
   renderAllLists();
-  updateScores();
   initAI();
 });
 
@@ -53,58 +52,14 @@ function renderList(key) {
       <div class="it">
         <b>${esc(item.l)}:</b> ${esc(bodyText)}
       </div>
-      <span class="pt-badge">${isGood ? '+1' : '-1'}</span>
     `;
 
     label.querySelector('input').addEventListener('change', e => {
       label.classList.toggle(isGood ? 'chk-good' : 'chk-bad', e.target.checked);
-      updateScores();
     });
 
     container.appendChild(label);
   });
-}
-
-/* ================================================================
-   CẬP NHẬT ĐIỂM (real-time)
-   Công thức: điểm = (số good ticked) - (số bad ticked), min = 0
-   ================================================================ */
-let _totalPts = 0;
-let _totalMax = 0;
-
-function updateScores() {
-  const crits = ['fc', 'lr', 'gra', 'p'];
-  let grandTotal = 0;
-  let grandMax   = 0;
-
-  crits.forEach(c => {
-    const goodChecked = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
-    const badChecked  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
-    const max         = PRESETS[`${c}-good`].length;
-    const pts         = Math.max(0, goodChecked - badChecked);
-
-    // --- Cập nhật badge điểm trên header từng tiêu chí ---
-    document.getElementById(`${c}-cur`).textContent = pts;
-    document.getElementById(`${c}-max`).textContent = max;
-
-    grandTotal += pts;
-    grandMax   += max;
-  });
-
-  // Cache cho generate()
-  _totalPts = grandTotal;
-  _totalMax = grandMax;
-}
-
-/* ================================================================
-   BAND CALCULATION
-   ================================================================ */
-function calcBand(ratio) {
-  if (_totalMax === 0) return null;
-  for (const b of BAND_SCALE) {
-    if (ratio >= b.min) return b.band;
-  }
-  return 2.0;
 }
 
 /* ================================================================
@@ -291,11 +246,6 @@ function generate() {
   const part    = document.getElementById('hv-part').value;
   const pronoun = document.getElementById('hv-pronoun').value;
 
-  // Band
-  const ratio   = _totalMax > 0 ? _totalPts / _totalMax : 0;
-  const band    = calcBand(ratio);
-  const bandStr = band !== null ? band.toFixed(1) : 'N/A';
-
   let html = '';
 
   /* ----- Header ----- */
@@ -307,12 +257,6 @@ function generate() {
         ${cls  ? ` · ${esc(cls)}`      : ''}
         ${date ? ` · ${esc(date)}`     : ''}
         ${part ? ` · ${esc(part)}`     : ''}
-      </div>
-      <div style="margin-top:10px">
-        <div class="fb-band-box">
-          <div class="fb-band-num">${bandStr}</div>
-          <div class="fb-band-label">Estimated Band Score</div>
-        </div>
       </div>
     </div>
   `;
@@ -489,9 +433,6 @@ function dlHTML() {
     .fb-title      { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; color: #9a0c23; }
     .fb-meta       { font-size: 12px; color: #6b7280; margin-top: 3px; font-family: Arial, Helvetica, sans-serif; }
     .fb-header     { border-bottom: 2px solid #ffd6dc; padding-bottom: 13px; margin-bottom: 15px; }
-    .fb-band-box   { display: inline-flex; flex-direction: column; align-items: center; background: #fef9ec; border: 2px solid #d4a017; border-radius: 12px; padding: 8px 18px; margin-top: 10px; }
-    .fb-band-num   { font-family: Arial, Helvetica, sans-serif; font-size: 36px; font-weight: 900; color: #b8860b; line-height: 1; }
-    .fb-band-label { font-size: 10px; color: #8a6d00; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
     .fb-section-title { font-family: Arial, Helvetica, sans-serif; font-size: 13.5px; font-weight: 700; color: #9a0c23; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid #ffd6dc; padding-bottom: 3px; margin: 18px 0 9px; }
     .fb-good-title { color: #15803d; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
     .fb-bad-title  { color: #b45309; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
@@ -629,7 +570,6 @@ function loadDraft() {
     document.getElementById('p-tags').innerHTML = '';
     (d.pTags || []).forEach(t => addWordTag(t.word, t.ipa));
 
-    updateScores();
     toast('✅ Đã mở nháp!');
   } catch (e) {
     toast('❌ Lỗi khi mở nháp: ' + e.message);
@@ -670,7 +610,6 @@ function resetAll() {
     </div>
   `;
 
-  updateScores();
   toast('🔄 Đã reset!');
 }
 
@@ -992,12 +931,12 @@ async function aiPolish(btn) {
     out = out.replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
     // Kiểm tra cấu trúc còn nguyên vẹn trước khi áp dụng
-    if (out[0] !== '<' || !/fb-band-num/.test(out) || !/fb-section-title/.test(out)) {
+    if (out[0] !== '<' || !/fb-section-title/.test(out)) {
       toast('❌ Kết quả AI không hợp lệ — giữ nguyên bản cũ.');
       return;
     }
     el.innerHTML = out;
-    toast('✨ Đã trau chuốt! Soát lại điểm số rồi mới gửi. (Bấm “Tạo Feedback” để về bản gốc)');
+    toast('✨ Đã trau chuốt! Kiểm tra lại rồi gửi nhé. (Bấm “Tạo Feedback” để về bản gốc)');
   } catch (e) {
     toast('❌ AI lỗi: ' + aiErr(e));
   } finally {
@@ -1032,13 +971,13 @@ function setHistory(arr) {
   localStorage.setItem(HISTORY_LS, JSON.stringify(arr));
 }
 
-/** Điểm hiện tại của 4 tiêu chí → { fc:{pts,max}, lr:..., gra:..., p:... } */
-function getCritScores() {
+/** Số nhận xét đã tick của 4 tiêu chí → { fc, lr, gra, p } (good + bad, không trừ) */
+function getCritCounts() {
   const out = {};
   ['fc', 'lr', 'gra', 'p'].forEach(c => {
     const good = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
     const bad  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
-    out[c] = { pts: Math.max(0, good - bad), max: PRESETS[`${c}-good`].length };
+    out[c] = good + bad;
   });
   return out;
 }
@@ -1056,10 +995,6 @@ function saveToHistory() {
   generate();
   const feedbackHTML = document.getElementById('preview').innerHTML;
 
-  const sc    = getCritScores();
-  const ratio = _totalMax > 0 ? _totalPts / _totalMax : 0;
-  const band  = calcBand(ratio);
-
   const rec = {
     id:       'h' + Date.now() + Math.random().toString(36).slice(2, 7),
     name:     name,
@@ -1067,10 +1002,7 @@ function saveToHistory() {
     date:     document.getElementById('hv-date').value.trim(),
     part:     document.getElementById('hv-part').value,
     savedAt:  new Date().toISOString(),
-    band:     band,
-    scores:   { fc: sc.fc.pts, lr: sc.lr.pts, gra: sc.gra.pts, p: sc.p.pts },
-    totalPts: _totalPts,
-    totalMax: _totalMax,
+    scores:   getCritCounts(),
     feedbackHTML: feedbackHTML,
   };
 
@@ -1120,11 +1052,10 @@ function renderHistory(filter) {
     html += `<div class="hist-group">
       <div class="hist-name">👤 ${esc(nm)} <span class="hist-count">${recs.length} bài</span></div>`;
     recs.forEach(r => {
-      const bandStr = (r.band != null) ? r.band.toFixed(1) : '—';
       html += `<div class="hist-row">
         <div class="hist-meta">
-          <b>Band ${bandStr}</b> · ${esc(r.date || '—')}${r.cls ? ' · ' + esc(r.cls) : ''}
-          <span class="hist-sub">FC ${r.scores.fc} · LR ${r.scores.lr} · GRA ${r.scores.gra} · PRON ${r.scores.p}</span>
+          <b>${esc(r.date || '—')}</b>${r.cls ? ' · ' + esc(r.cls) : ''}
+          <span class="hist-sub">Nhận xét đã chọn: FC ${r.scores.fc} · LR ${r.scores.lr} · GRA ${r.scores.gra} · PRON ${r.scores.p}</span>
         </div>
         <div class="hist-actions">
           <button class="btn-mini" onclick="viewHistoryRecord('${r.id}')">👁 Xem</button>
@@ -1178,30 +1109,25 @@ function openClassSummary() {
   });
   const rows = Object.values(latest).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
-  let bandSum = 0, bandN = 0, body = '';
+  let body = '';
   rows.forEach(r => {
-    const bandStr = (r.band != null) ? r.band.toFixed(1) : '—';
-    if (r.band != null) { bandSum += r.band; bandN++; }
     body += `<tr>
       <td class="sum-name">${esc(r.name)}</td>
       <td>${esc(r.cls || '—')}</td>
       <td>${esc(r.date || '—')}</td>
       <td>${r.scores.fc}</td><td>${r.scores.lr}</td>
       <td>${r.scores.gra}</td><td>${r.scores.p}</td>
-      <td><b>${bandStr}</b></td>
     </tr>`;
   });
-  const avg = bandN ? (bandSum / bandN).toFixed(1) : '—';
 
   box.innerHTML = `<table class="sum-table">
     <thead><tr>
       <th>Học viên</th><th>Lớp</th><th>Ngày</th>
-      <th>FC</th><th>LR</th><th>GRA</th><th>PRON</th><th>Band</th>
+      <th>FC</th><th>LR</th><th>GRA</th><th>PRON</th>
     </tr></thead>
     <tbody>${body}</tbody>
     <tfoot><tr>
-      <td colspan="7">Band trung bình cả lớp · ${rows.length} học viên</td>
-      <td><b>${avg}</b></td>
+      <td colspan="7">Tổng cộng · ${rows.length} học viên (số = nhận xét đã chọn)</td>
     </tr></tfoot>
   </table>`;
   openModal('summary-modal');

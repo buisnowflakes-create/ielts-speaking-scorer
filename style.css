@@ -187,28 +187,6 @@ header {
 .ci-gold { background: rgba(212,160,23,.15); color: var(--gold); }
 
 /* ================================================================
-   SCORE BADGE (pill in card header)
-   ================================================================ */
-.score-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--card2);
-  border: 1px solid var(--border2);
-  border-radius: 999px;
-  padding: 3px 11px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-.score-badge .cur {
-  color: var(--gold);
-  font-weight: 600;
-  font-size: 14px;
-}
-.score-badge .mx { color: var(--text-muted); font-size: 10px; }
-
-/* ================================================================
    SECTION LABELS (good / bad dividers)
    ================================================================ */
 .sec-label {
@@ -264,19 +242,6 @@ header {
   flex: 1;
 }
 .check-item .it b { color: var(--text); font-weight: 600; }
-
-.pt-badge {
-  flex-shrink: 0;
-  font-size: 9.5px;
-  font-family: Arial, Helvetica, sans-serif;
-  background: var(--card2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 6px;
-  color: var(--text-muted);
-}
-.chk-good .pt-badge { background: rgba(22,163,74,.13); border-color: #16a34a; color: #15803d; }
-.chk-bad  .pt-badge { background: rgba(200,16,46,.1);  border-color: #c8102e; color: #b91c1c; }
 
 /* ================================================================
    FORM FIELDS
@@ -449,17 +414,6 @@ textarea { resize: vertical; line-height: 1.5; }
 .fb-title     { font-family: Arial, Helvetica, sans-serif; font-size: 19px; font-weight: 700; color: var(--primary); }
 .fb-meta      { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; font-family: Arial, Helvetica, sans-serif; }
 
-.fb-band-box  {
-  display: inline-flex; flex-direction: column; align-items: center;
-  background: var(--gold-light);
-  border: 2px solid var(--gold);
-  border-radius: 12px;
-  padding: 8px 18px;
-  margin-top: 11px;
-}
-.fb-band-num   { font-family: Arial, Helvetica, sans-serif; font-size: 36px; font-weight: 900; color: #b8860b; line-height: 1; }
-.fb-band-label { font-size: 10px; color: #8a6d00; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
-
 .fb-section-title {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 13px;
@@ -530,7 +484,7 @@ textarea { resize: vertical; line-height: 1.5; }
    TRỢ LÝ AI + MODAL
    ================================================================ */
 
-/* Header: nhóm nút AI + band pill */
+/* Header: nhóm nút AI */
 .hdr-right { display: flex; align-items: center; gap: 12px; }
 
 .hdr-ai-btn {
@@ -843,9 +797,6 @@ textarea { resize: vertical; line-height: 1.5; }
   .fb-section-title  { color: #9a0c23 !important; border-bottom-color: #ffd6dc !important; }
   .fb-good-title     { color: #15803d !important; }
   .fb-bad-title      { color: #b45309 !important; }
-  .fb-band-box       { background: #fef9ec !important; border-color: #d4a017 !important; }
-  .fb-band-num       { color: #b8860b !important; }
-  .fb-band-label     { color: #8a6d00 !important; }
   .fb-encourage      { background: #fff0f2 !important; border-left-color: #c8102e !important; color: #9a0c23 !important; }
   .fb-err-mark       { background: #fee2e2 !important; color: #dc2626 !important; }
   .fb-fix-mark       { background: #dcfce7 !important; color: #16a34a !important; }
