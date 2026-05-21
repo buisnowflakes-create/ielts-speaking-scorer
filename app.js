@@ -1013,3 +1013,206 @@ function oxfordURL(word) {
   const w = String(word == null ? '' : word).trim();
   return 'https://www.oxfordlearnersdictionaries.com/search/english/?q=' + encodeURIComponent(w);
 }
+
+/* ================================================================
+   LỊCH SỬ HỌC VIÊN + TỔNG HỢP CẢ LỚP
+   Lưu feedback từng học viên vào localStorage để xem lại và
+   tổng hợp điểm toàn lớp.
+   ================================================================ */
+const HISTORY_LS = 'ielts_history_v1';
+
+/** Đọc mảng lịch sử từ localStorage */
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_LS) || '[]'); }
+  catch (e) { return []; }
+}
+
+/** Ghi mảng lịch sử vào localStorage */
+function setHistory(arr) {
+  localStorage.setItem(HISTORY_LS, JSON.stringify(arr));
+}
+
+/** Điểm hiện tại của 4 tiêu chí → { fc:{pts,max}, lr:..., gra:..., p:... } */
+function getCritScores() {
+  const out = {};
+  ['fc', 'lr', 'gra', 'p'].forEach(c => {
+    const good = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
+    const bad  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
+    out[c] = { pts: Math.max(0, good - bad), max: PRESETS[`${c}-good`].length };
+  });
+  return out;
+}
+
+/** Lưu feedback hiện tại vào lịch sử học viên */
+function saveToHistory() {
+  const name = document.getElementById('hv-name').value.trim();
+  if (!name) {
+    toast('⚠ Hãy nhập Tên học viên trước khi lưu vào lịch sử.');
+    document.getElementById('hv-name').focus();
+    return;
+  }
+
+  // Tạo feedback mới nhất để lưu kèm
+  generate();
+  const feedbackHTML = document.getElementById('preview').innerHTML;
+
+  const sc    = getCritScores();
+  const ratio = _totalMax > 0 ? _totalPts / _totalMax : 0;
+  const band  = calcBand(ratio);
+
+  const rec = {
+    id:       'h' + Date.now() + Math.random().toString(36).slice(2, 7),
+    name:     name,
+    cls:      document.getElementById('hv-class').value.trim(),
+    date:     document.getElementById('hv-date').value.trim(),
+    part:     document.getElementById('hv-part').value,
+    savedAt:  new Date().toISOString(),
+    band:     band,
+    scores:   { fc: sc.fc.pts, lr: sc.lr.pts, gra: sc.gra.pts, p: sc.p.pts },
+    totalPts: _totalPts,
+    totalMax: _totalMax,
+    feedbackHTML: feedbackHTML,
+  };
+
+  const hist = getHistory();
+  hist.push(rec);
+  setHistory(hist);
+  toast(`✅ Đã lưu feedback của "${name}" vào lịch sử!`);
+}
+
+/* ---------- XEM LỊCH SỬ ---------- */
+
+/** Mở modal lịch sử */
+function openHistory() {
+  document.getElementById('history-search').value = '';
+  renderHistory('');
+  openModal('history-modal');
+}
+
+/** Render danh sách lịch sử, gom nhóm theo học viên, lọc theo tên */
+function renderHistory(filter) {
+  const box  = document.getElementById('history-body');
+  const hist = getHistory();
+
+  if (!hist.length) {
+    box.innerHTML = '<div class="hist-empty">Chưa có feedback nào được lưu.<br/>'
+                  + 'Chấm xong rồi bấm “📒 Lưu vào lịch sử HV” để lưu lại.</div>';
+    return;
+  }
+
+  const fl     = (filter || '').trim().toLowerCase();
+  const groups = {};
+  hist.forEach(r => {
+    if (fl && !(r.name || '').toLowerCase().includes(fl)) return;
+    (groups[r.name] = groups[r.name] || []).push(r);
+  });
+
+  const names = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'vi'));
+  if (!names.length) {
+    box.innerHTML = '<div class="hist-empty">Không tìm thấy học viên nào khớp.</div>';
+    return;
+  }
+
+  let html = '';
+  names.forEach(nm => {
+    const recs = groups[nm].slice()
+      .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+    html += `<div class="hist-group">
+      <div class="hist-name">👤 ${esc(nm)} <span class="hist-count">${recs.length} bài</span></div>`;
+    recs.forEach(r => {
+      const bandStr = (r.band != null) ? r.band.toFixed(1) : '—';
+      html += `<div class="hist-row">
+        <div class="hist-meta">
+          <b>Band ${bandStr}</b> · ${esc(r.date || '—')}${r.cls ? ' · ' + esc(r.cls) : ''}
+          <span class="hist-sub">FC ${r.scores.fc} · LR ${r.scores.lr} · GRA ${r.scores.gra} · PRON ${r.scores.p}</span>
+        </div>
+        <div class="hist-actions">
+          <button class="btn-mini" onclick="viewHistoryRecord('${r.id}')">👁 Xem</button>
+          <button class="btn-mini" onclick="deleteHistoryRecord('${r.id}')">🗑 Xoá</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  box.innerHTML = html;
+}
+
+/** Mở lại 1 feedback đã lưu vào khung preview */
+function viewHistoryRecord(id) {
+  const rec = getHistory().find(r => r.id === id);
+  if (!rec) { toast('Không tìm thấy bản ghi.'); return; }
+  document.getElementById('preview').innerHTML = rec.feedbackHTML;
+  closeModal('history-modal');
+  toast(`📄 Đang xem feedback của "${rec.name}".`);
+  document.getElementById('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/** Xoá 1 bản ghi khỏi lịch sử */
+function deleteHistoryRecord(id) {
+  if (!confirm('Xoá bản ghi feedback này khỏi lịch sử?')) return;
+  setHistory(getHistory().filter(r => r.id !== id));
+  renderHistory(document.getElementById('history-search').value);
+  toast('🗑 Đã xoá khỏi lịch sử.');
+}
+
+/* ---------- TỔNG HỢP CẢ LỚP ---------- */
+
+/** Mở modal tổng hợp điểm cả lớp (lấy bài mới nhất của mỗi học viên) */
+function openClassSummary() {
+  const box  = document.getElementById('summary-body');
+  const hist = getHistory();
+
+  if (!hist.length) {
+    box.innerHTML = '<div class="hist-empty">Chưa có dữ liệu.<br/>'
+                  + 'Hãy lưu feedback học viên vào lịch sử trước.</div>';
+    openModal('summary-modal');
+    return;
+  }
+
+  // Lấy bài mới nhất của mỗi học viên
+  const latest = {};
+  hist.forEach(r => {
+    if (!latest[r.name] || (r.savedAt || '') > (latest[r.name].savedAt || '')) {
+      latest[r.name] = r;
+    }
+  });
+  const rows = Object.values(latest).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+  let bandSum = 0, bandN = 0, body = '';
+  rows.forEach(r => {
+    const bandStr = (r.band != null) ? r.band.toFixed(1) : '—';
+    if (r.band != null) { bandSum += r.band; bandN++; }
+    body += `<tr>
+      <td class="sum-name">${esc(r.name)}</td>
+      <td>${esc(r.cls || '—')}</td>
+      <td>${esc(r.date || '—')}</td>
+      <td>${r.scores.fc}</td><td>${r.scores.lr}</td>
+      <td>${r.scores.gra}</td><td>${r.scores.p}</td>
+      <td><b>${bandStr}</b></td>
+    </tr>`;
+  });
+  const avg = bandN ? (bandSum / bandN).toFixed(1) : '—';
+
+  box.innerHTML = `<table class="sum-table">
+    <thead><tr>
+      <th>Học viên</th><th>Lớp</th><th>Ngày</th>
+      <th>FC</th><th>LR</th><th>GRA</th><th>PRON</th><th>Band</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr>
+      <td colspan="7">Band trung bình cả lớp · ${rows.length} học viên</td>
+      <td><b>${avg}</b></td>
+    </tr></tfoot>
+  </table>`;
+  openModal('summary-modal');
+}
+
+/* ================================================================
+   NÚT CUỘN TRANG
+   ================================================================ */
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function scrollToBottom() {
+  window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+}

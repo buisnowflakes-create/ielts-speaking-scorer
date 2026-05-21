@@ -143,6 +143,10 @@ Các hàm chính:
 | `aiFixRow()` | AI gợi ý sửa 1 dòng lỗi |
 | `runScan()` | AI quét lỗi từ transcript |
 | `aiPolish()` | AI trau chuốt feedback |
+| `saveToHistory()` | Lưu feedback của 1 HV vào lịch sử |
+| `openHistory()` | Mở modal xem lại lịch sử feedback |
+| `openClassSummary()` | Mở bảng tổng hợp điểm cả lớp |
+| `scrollToTop()` / `scrollToBottom()` | Cuộn nhanh lên đầu / xuống cuối trang |
 
 ### Chỉnh prompt / model AI → `data.js`
 
@@ -166,6 +170,8 @@ const AI_PROMPTS = {
 - ✅ Tra IPA tự động (local dict + dictionaryapi.dev)
 - ✅ Trợ lý AI (Google Gemini): sửa lỗi theo dòng, quét lỗi từ transcript, trau chuốt feedback
 - ✅ Tra cứu Oxford Learner's Dictionary cho từ luyện phát âm
+- ✅ Lịch sử học viên: lưu feedback từng HV, xem lại, tổng hợp điểm cả lớp
+- ✅ Nút cuộn nhanh lên đầu / xuống cuối trang
 - ✅ Tạo feedback đầy đủ với bảng điểm + highlight màu
 - ✅ Copy feedback có định dạng (paste vào Zalo/Word/Notion)
 - ✅ Tải file .html standalone (gửi học viên)

@@ -45,7 +45,8 @@
 html  { scroll-behavior: smooth; }
 body  {
   font-family: Arial, Helvetica, sans-serif;
-  background: var(--bg);
+  background: linear-gradient(180deg, #f8f9fb 0%, #e9ebef 100%);
+  background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
   line-height: 1.6;
@@ -57,6 +58,7 @@ body  {
    ================================================================ */
 header {
   background: var(--card);
+  border-top: 3px solid var(--primary);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   padding: 18px 28px;
@@ -498,7 +500,8 @@ textarea { resize: vertical; line-height: 1.5; }
    ================================================================ */
 .toast {
   position: fixed;
-  bottom: 22px; right: 22px;
+  bottom: 22px;
+  left: 50%;
   background: var(--card);
   border: 1px solid var(--border);
   color: var(--text);
@@ -507,13 +510,13 @@ textarea { resize: vertical; line-height: 1.5; }
   font-size: 13px;
   font-weight: 500;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translate(-50%, 12px);
   transition: all .25s;
   pointer-events: none;
   z-index: 200;
   box-shadow: var(--shadow);
 }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ================================================================
    ANIMATIONS
@@ -692,13 +695,134 @@ textarea { resize: vertical; line-height: 1.5; }
 .ai-hint a { color: #6d28d9; }
 
 /* ================================================================
+   LỊCH SỬ HỌC VIÊN · TỔNG HỢP · NÚT CUỘN
+   ================================================================ */
+
+/* Nút "Lưu vào lịch sử HV" — tông vàng nổi bật */
+.btn-history {
+  background: var(--gold-light);
+  color: #8a6d00;
+  border: 1px solid #e7c84d;
+}
+.btn-history:hover { background: #fbeec3; }
+
+/* Modal rộng cho lịch sử / tổng hợp */
+.modal.modal-lg { max-width: 720px; }
+
+/* Trạng thái rỗng / thông báo trong modal */
+.hist-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 30px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* Danh sách lịch sử — nhóm theo học viên */
+.hist-group { margin-bottom: 15px; }
+.hist-name {
+  font-weight: 700;
+  font-size: 13px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 7px;
+}
+.hist-count {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--card2);
+  border: 1px solid var(--border);
+  margin-bottom: 5px;
+}
+.hist-meta { font-size: 12px; }
+.hist-sub {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.hist-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
+/* Bảng tổng hợp cả lớp */
+.sum-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.sum-table th {
+  background: var(--card2);
+  color: var(--text-muted);
+  padding: 7px 8px;
+  text-align: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  border-bottom: 1px solid var(--border);
+}
+.sum-table td {
+  padding: 7px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.sum-table .sum-name { text-align: left; font-weight: 600; }
+.sum-table tbody tr:hover { background: var(--card2); }
+.sum-table tfoot td {
+  background: var(--gold-light);
+  color: #8a6d00;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Nút cuộn trang nổi (góc dưới-phải) */
+.scroll-btns {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 150;
+}
+.scroll-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  background: var(--card);
+  color: var(--primary);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scroll-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+/* ================================================================
    PRINT STYLES (PDF export via Ctrl+P / window.print())
    ================================================================ */
 @media print {
   body { background: #fff !important; color: #111 !important; font-family: Arial, sans-serif !important; }
 
   /* Hide everything except preview */
-  header, .input-pane, .btn-row, .preview-actions, .toast, .modal-overlay { display: none !important; }
+  header, .input-pane, .btn-row, .preview-actions, .toast, .modal-overlay, .scroll-btns { display: none !important; }
   .wrap         { display: block !important; padding: 0 !important; }
   .preview-pane { position: static !important; }
 

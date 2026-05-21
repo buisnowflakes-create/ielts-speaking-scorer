@@ -239,6 +239,9 @@
     <!-- Action buttons -->
     <div class="btn-row">
       <button class="btn btn-primary" onclick="generate()">✨ Tạo Feedback</button>
+      <button class="btn btn-history" onclick="saveToHistory()">📒 Lưu vào lịch sử HV</button>
+      <button class="btn btn-secondary" onclick="openHistory()">📚 Xem lịch sử</button>
+      <button class="btn btn-secondary" onclick="openClassSummary()">👥 Tổng hợp cả lớp</button>
       <button class="btn btn-secondary" onclick="resetAll()">🔄 Reset</button>
       <button class="btn btn-secondary" onclick="saveDraft()">💾 Lưu nháp</button>
       <button class="btn btn-secondary" onclick="loadDraft()">📂 Mở nháp</button>
@@ -319,6 +322,41 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- ===== MODAL: Lịch sử feedback học viên ===== -->
+<div class="modal-overlay" id="history-modal" onclick="if(event.target===this)closeModal('history-modal')">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h3>📚 Lịch sử feedback học viên</h3>
+      <button class="modal-x" onclick="closeModal('history-modal')" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="history-search" placeholder="🔍 Tìm theo tên học viên..."
+             oninput="renderHistory(this.value)" autocomplete="off" />
+      <div id="history-body" style="margin-top: 12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Tổng hợp cả lớp ===== -->
+<div class="modal-overlay" id="summary-modal" onclick="if(event.target===this)closeModal('summary-modal')">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h3>👥 Tổng hợp điểm cả lớp</h3>
+      <button class="modal-x" onclick="closeModal('summary-modal')" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ai-hint">Bảng lấy <b>bài mới nhất</b> của mỗi học viên đã lưu trong lịch sử.</div>
+      <div id="summary-body" style="margin-top: 12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Nút cuộn trang ===== -->
+<div class="scroll-btns">
+  <button class="scroll-btn" onclick="scrollToTop()" title="Lên đầu trang" aria-label="Lên đầu trang">↑</button>
+  <button class="scroll-btn" onclick="scrollToBottom()" title="Xuống cuối trang" aria-label="Xuống cuối trang">↓</button>
 </div>
 
 <script src="data.js"></script>
