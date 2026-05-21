@@ -27,13 +27,28 @@ Mở `index.html` trực tiếp trong trình duyệt — **không cần server**
 
 Tool tích hợp AI để **tìm & sửa lỗi** và **trau chuốt feedback**, dùng Google Gemini.
 
-### Thiết lập (1 lần)
+Lấy API key **miễn phí** tại <https://aistudio.google.com/app/apikey>. Có 2 cách dùng key:
+
+**Cách 1 — Tự nhập trên từng máy** (mỗi máy nhập 1 lần)
 
 1. Bấm nút **🤖 Trợ lý AI** ở góc trên bên phải.
-2. Lấy API key **miễn phí** tại <https://aistudio.google.com/app/apikey>.
-3. Dán key vào ô **Gemini API Key**, chọn **Model**, bấm **🧪 Kiểm tra kết nối** rồi **💾 Lưu**.
+2. Dán key vào ô **Gemini API Key**, chọn **Model**, bấm **🧪 Kiểm tra kết nối** rồi **💾 Lưu**.
 
-> 🔒 API key chỉ lưu trong `localStorage` của trình duyệt trên máy này — không gửi đi đâu ngoài Google.
+> 🔒 Key chỉ lưu trong `localStorage` của trình duyệt máy đó.
+
+**Cách 2 — Dán sẵn vào tool, AI tự chạy mọi máy** (không cần nhập tay)
+
+Mở file `data.js`, tìm dòng `apiKey: ''` ở đầu `AI_CONFIG`, dán key vào giữa 2 dấu nháy:
+
+```js
+apiKey: 'AIza...key-của-bạn...',
+```
+
+Từ đó tool tự dùng key này trên mọi máy, không hiện yêu cầu nhập.
+
+> ⚠️ Khi đã dán key vào `data.js`: **không** đẩy file lên GitHub/website công khai.
+> Nên dùng key của tài khoản Google **không gắn thẻ thanh toán** → rủi ro tối đa chỉ
+> là hết lượt miễn phí trong ngày, không phát sinh tiền.
 
 ### 3 tính năng AI
 

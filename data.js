@@ -315,6 +315,13 @@ const IPA_DICT = {
    localStorage của trình duyệt (không gửi đi đâu ngoài Google).
    ---------------------------------------------------------------- */
 const AI_CONFIG = {
+
+  /* ⚙️ DÁN API KEY GEMINI VÀO GIỮA 2 DẤU NHÁY DƯỚI ĐÂY
+     → Trợ lý AI sẽ TỰ CHẠY trên mọi máy, không cần nhập tay.
+     → Để trống ('') nếu muốn mỗi máy tự nhập key riêng.
+     ⚠️ Khi đã dán key: KHÔNG đẩy file này lên GitHub/website công khai. */
+  apiKey: '',
+
   defaultModel: 'gemini-2.5-flash',
   models: [
     'gemini-2.5-flash',
@@ -356,17 +363,19 @@ const AI_SCHEMAS = {
    ---------------------------------------------------------------- */
 const AI_PROMPTS = {
 
-  /* Sửa 1 câu/cụm sai → JSON { right, note } */
+  /* Sửa 1 hoặc NHIỀU câu/cụm sai (mỗi dòng = 1 câu) → JSON { right, note } */
   fixOne: (cat, wrong) => {
     const label = cat === 'grammar' ? 'ngữ pháp' : 'từ vựng / collocation';
     return `Bạn là giáo viên IELTS Speaking giàu kinh nghiệm, đang chấm bài cho học viên người Việt.
-Học viên đã nói câu/cụm sau (có thể mắc lỗi ${label}):
-"${wrong}"
+Dưới đây là MỘT hoặc NHIỀU câu/cụm học viên nói — MỖI DÒNG là một câu/cụm riêng biệt (có thể mắc lỗi ${label}):
+"""
+${wrong}
+"""
 
-Nhiệm vụ: sửa lại cho ĐÚNG và TỰ NHIÊN theo văn phong IELTS Speaking.
+Nhiệm vụ: sửa TỪNG DÒNG cho ĐÚNG và TỰ NHIÊN theo văn phong IELTS Speaking.
 Trả về JSON gồm 2 trường:
-- "right": câu/cụm tiếng Anh đã sửa đúng (nếu vốn đã đúng thì giữ nguyên).
-- "note": giải thích NGẮN GỌN bằng tiếng Việt (1-2 câu, tối đa khoảng 200 ký tự) vì sao sai và quy tắc cần nhớ. Nếu câu đã đúng, ghi "Câu này dùng đã đúng rồi.".`;
+- "right": bản sửa. PHẢI có ĐÚNG số dòng bằng đầu vào và giữ nguyên thứ tự — dòng thứ n của "right" là bản sửa cho dòng thứ n của đầu vào. Dòng nào vốn đã đúng thì chép lại nguyên dòng đó.
+- "note": giải thích NGẮN GỌN bằng tiếng Việt. Nếu đầu vào có nhiều dòng, giải thích lần lượt từng dòng (mỗi dòng một ý ngắn, đánh số 1., 2., 3...). Dòng nào đã đúng thì ghi "đã đúng".`;
   },
 
   /* Quét transcript → MẢNG JSON [{ wrong, right, note }] */

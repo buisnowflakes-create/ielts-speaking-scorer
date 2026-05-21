@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>IELTS Speaking Scorer – LangGo</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -22,10 +21,6 @@
     <button class="hdr-ai-btn" id="ai-btn" onclick="openAIModal()" title="Cài đặt Trợ lý AI (Gemini)">
       <span class="dot"></span> 🤖 Trợ lý AI
     </button>
-    <div class="band-pill">
-      <div class="num" id="hdr-band">—</div>
-      <div class="lbl">Band Score</div>
-    </div>
   </div>
 </header>
 
@@ -50,15 +45,15 @@
         <div class="info-grid">
           <div>
             <label class="field-label">Tên học viên</label>
-            <input type="text" id="hv-name" placeholder="VD: Nguyễn Minh Anh" />
+            <textarea id="hv-name" rows="1" placeholder="VD: Nguyễn Minh Anh"></textarea>
           </div>
           <div>
             <label class="field-label">Lớp / Class</label>
-            <input type="text" id="hv-class" placeholder="VD: IELTS-B2" />
+            <textarea id="hv-class" rows="1" placeholder="VD: IELTS-B2"></textarea>
           </div>
           <div>
             <label class="field-label">Ngày</label>
-            <input type="text" id="hv-date" />
+            <textarea id="hv-date" rows="1"></textarea>
           </div>
         </div>
         <div class="row-2" style="margin-top: 11px">
@@ -78,87 +73,6 @@
               <option value="anh">anh</option>
               <option value="chị">chị</option>
             </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bảng điểm tổng quan -->
-    <div class="card">
-      <div class="card-head">
-        <div class="card-head-left">
-          <div class="crit-icon ci-gold">📊</div>
-          <div>
-            <h2>Bảng điểm tổng quan</h2>
-            <div class="hsub">Live score dashboard</div>
-          </div>
-        </div>
-        <div class="score-badge">
-          Tổng: <span class="cur" id="tot-pts">0</span>
-          <span class="mx">/ <span id="tot-max">0</span></span>
-        </div>
-      </div>
-      <div class="card-body">
-        <!-- Mini score cards -->
-        <div class="ov-grid">
-          <div class="ov-card">
-            <div class="on">FC</div>
-            <div class="op op-fc" id="fc-pts">0</div>
-            <div class="om">/ <span id="fc-max-d">0</span></div>
-          </div>
-          <div class="ov-card">
-            <div class="on">LR</div>
-            <div class="op op-lr" id="lr-pts">0</div>
-            <div class="om">/ <span id="lr-max-d">0</span></div>
-          </div>
-          <div class="ov-card">
-            <div class="on">GRA</div>
-            <div class="op op-gra" id="gra-pts">0</div>
-            <div class="om">/ <span id="gra-max-d">0</span></div>
-          </div>
-          <div class="ov-card">
-            <div class="on">PRON</div>
-            <div class="op op-p" id="p-pts">0</div>
-            <div class="om">/ <span id="p-max-d">0</span></div>
-          </div>
-        </div>
-        <!-- Progress bars -->
-        <div class="bar-wrap">
-          <div class="bar-label">
-            <span class="bn">Fluency &amp; Coherence</span>
-            <span class="bp" id="fc-bl">0/0</span>
-          </div>
-          <div class="bar"><div class="bar-fill bf-fc" id="fc-bar" style="width:0%"></div></div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">
-            <span class="bn">Lexical Resource</span>
-            <span class="bp" id="lr-bl">0/0</span>
-          </div>
-          <div class="bar"><div class="bar-fill bf-lr" id="lr-bar" style="width:0%"></div></div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">
-            <span class="bn">Grammatical Range &amp; Accuracy</span>
-            <span class="bp" id="gra-bl">0/0</span>
-          </div>
-          <div class="bar"><div class="bar-fill bf-gra" id="gra-bar" style="width:0%"></div></div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">
-            <span class="bn">Pronunciation</span>
-            <span class="bp" id="p-bl">0/0</span>
-          </div>
-          <div class="bar"><div class="bar-fill bf-p" id="p-bar" style="width:0%"></div></div>
-        </div>
-        <!-- Band meter -->
-        <div style="margin-top: 4px">
-          <div class="bar-label" style="margin-bottom: 3px">
-            <span class="bn" style="font-size:11px;color:var(--text-muted)">Band estimate</span>
-            <span class="bp" id="band-lbl">—</span>
-          </div>
-          <div class="band-meter">
-            <div class="band-meter-fill" id="band-mtr" style="width:0%"></div>
           </div>
         </div>
       </div>

@@ -84,41 +84,21 @@ function updateScores() {
     const max         = PRESETS[`${c}-good`].length;
     const pts         = Math.max(0, goodChecked - badChecked);
 
-    // --- Cập nhật UI sidebar badge ---
-    document.getElementById(`${c}-cur`).textContent  = pts;
-    document.getElementById(`${c}-max`).textContent  = max;
-
-    // --- Cập nhật overview cards ---
-    document.getElementById(`${c}-pts`).textContent   = pts;
-    document.getElementById(`${c}-max-d`).textContent = max;
-
-    // --- Cập nhật progress bar ---
-    const pct = max > 0 ? Math.min(100, (pts / max) * 100) : 0;
-    document.getElementById(`${c}-bar`).style.width  = pct + '%';
-    document.getElementById(`${c}-bl`).textContent   = `${pts}/${max}`;
+    // --- Cập nhật badge điểm trên header từng tiêu chí ---
+    document.getElementById(`${c}-cur`).textContent = pts;
+    document.getElementById(`${c}-max`).textContent = max;
 
     grandTotal += pts;
     grandMax   += max;
   });
 
-  // --- Tổng điểm ---
-  document.getElementById('tot-pts').textContent = grandTotal;
-  document.getElementById('tot-max').textContent = grandMax;
-
-  // --- Band estimate ---
-  const ratio   = grandMax > 0 ? grandTotal / grandMax : 0;
-  const band    = calcBand(ratio);
-  const bandStr = band !== null ? band.toFixed(1) : '—';
-
-  document.getElementById('hdr-band').textContent  = bandStr;
-  document.getElementById('band-lbl').textContent  = `Band ${bandStr}`;
-  document.getElementById('band-mtr').style.width  = (ratio * 100) + '%';
-
-  updateBandHighlight(band);
-
   // Cache cho generate()
   _totalPts = grandTotal;
   _totalMax = grandMax;
+
+  // --- Band estimate (highlight dòng trong bảng Band Reference) ---
+  const ratio = grandMax > 0 ? grandTotal / grandMax : 0;
+  updateBandHighlight(calcBand(ratio));
 }
 
 /* ================================================================
@@ -165,11 +145,11 @@ function addErrRow(containerId, wrong = '', right = '', note = '') {
 
   wrap.innerHTML = `
     <div class="err-row">
-      <input type="text" placeholder="Câu/cụm sai"
-             value="${escAttr(wrong)}" data-role="wrong" />
+      <textarea rows="2" placeholder="Câu/cụm sai"
+                data-role="wrong">${esc(wrong)}</textarea>
       <div class="err-arr">→</div>
-      <input type="text" placeholder="Sửa lại"
-             value="${escAttr(right)}" data-role="right" />
+      <textarea rows="2" placeholder="Sửa lại"
+                data-role="right">${esc(right)}</textarea>
       <button class="btn-ai-mini" onclick="aiFixRow(this)"
               title="AI gợi ý phần sửa cho câu sai">✨</button>
       <button class="btn-mini"
@@ -177,9 +157,9 @@ function addErrRow(containerId, wrong = '', right = '', note = '') {
               title="Xoá">✕</button>
     </div>
     <div class="err-note">
-      <input type="text"
-             placeholder="Giải thích / ghi chú (không bắt buộc)"
-             value="${escAttr(note)}" data-role="note" />
+      <textarea rows="2"
+                placeholder="Giải thích / ghi chú (không bắt buộc)"
+                data-role="note">${esc(note)}</textarea>
     </div>
   `;
 
@@ -200,6 +180,42 @@ function getErrRows(containerId) {
     if (wrong || right) rows.push({ wrong, right, note });
   });
   return rows;
+}
+
+/**
+ * Render danh sách lỗi thành các <li> cho feedback.
+ * Hỗ trợ ô lỗi NHIỀU DÒNG: mỗi dòng "sai" ghép với dòng "sửa" cùng vị trí
+ * thành 1 bullet riêng; ghi chú gắn vào bullet cuối của lỗi đó.
+ * @param {Array<{wrong,right,note}>} errs
+ * @returns {string} HTML
+ */
+function renderErrItems(errs) {
+  let html = '';
+  errs.forEach(e => {
+    const wLines = String(e.wrong || '').split('\n').map(s => s.trim());
+    const rLines = String(e.right || '').split('\n').map(s => s.trim());
+    const n = Math.max(wLines.length, rLines.length, 1);
+
+    // Ghép từng dòng sai → dòng sửa cùng vị trí
+    const pairs = [];
+    for (let i = 0; i < n; i++) {
+      const w = wLines[i] || '';
+      const r = rLines[i] || '';
+      if (w || r) pairs.push({ w, r });
+    }
+
+    pairs.forEach((p, i) => {
+      html += '<li>';
+      if (p.w) html += `<span class="fb-err-mark">${esc(p.w)}</span> → `;
+      html += `<span class="fb-fix-mark">${esc(p.r)}</span>`;
+      // Ghi chú gắn vào bullet cuối cùng của lỗi này
+      if (e.note && i === pairs.length - 1) {
+        html += `<br/><span class="fb-note">(${esc(e.note).replace(/\n/g, '<br/>')})</span>`;
+      }
+      html += '</li>';
+    });
+  });
+  return html;
 }
 
 /* ================================================================
@@ -427,13 +443,7 @@ function generate() {
       const errs = getErrRows('lr-errors');
       if (errs.length) {
         html += `<div class="fb-bad-title">📝 Lỗi từ vựng / collocation:</div><ul class="fb-list">`;
-        errs.forEach(e => {
-          html += '<li>';
-          if (e.wrong) html += `<span class="fb-err-mark">${esc(e.wrong)}</span> → `;
-          html += `<span class="fb-fix-mark">${esc(e.right)}</span>`;
-          if (e.note)  html += `<br/><span class="fb-note">(${esc(e.note)})</span>`;
-          html += '</li>';
-        });
+        html += renderErrItems(errs);
         html += `</ul>`;
       }
     }
@@ -443,13 +453,7 @@ function generate() {
       const errs = getErrRows('gra-errors');
       if (errs.length) {
         html += `<div class="fb-bad-title">📝 Lỗi ngữ pháp cụ thể:</div><ul class="fb-list">`;
-        errs.forEach(e => {
-          html += '<li>';
-          if (e.wrong) html += `<span class="fb-err-mark">${esc(e.wrong)}</span> → `;
-          html += `<span class="fb-fix-mark">${esc(e.right)}</span>`;
-          if (e.note)  html += `<br/><span class="fb-note">(${esc(e.note)})</span>`;
-          html += '</li>';
-        });
+        html += renderErrItems(errs);
         html += `</ul>`;
       }
     }
@@ -543,26 +547,26 @@ function dlHTML() {
 
   // CSS nhúng vào file export (light theme, không cần dark mode)
   const exportCSS = `
-    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 20px; line-height: 1.7; color: #1f2937; }
-    .fb-title      { font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: #9a0c23; }
-    .fb-meta       { font-size: 12px; color: #6b7280; margin-top: 3px; font-family: monospace; }
+    body { font-family: Arial, Helvetica, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 20px; line-height: 1.7; color: #1f2937; }
+    .fb-title      { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; color: #9a0c23; }
+    .fb-meta       { font-size: 12px; color: #6b7280; margin-top: 3px; font-family: Arial, Helvetica, sans-serif; }
     .fb-header     { border-bottom: 2px solid #ffd6dc; padding-bottom: 13px; margin-bottom: 15px; }
     .fb-band-box   { display: inline-flex; flex-direction: column; align-items: center; background: #fef9ec; border: 2px solid #d4a017; border-radius: 12px; padding: 8px 18px; margin-top: 10px; }
-    .fb-band-num   { font-family: Georgia, serif; font-size: 36px; font-weight: 900; color: #b8860b; line-height: 1; }
+    .fb-band-num   { font-family: Arial, Helvetica, sans-serif; font-size: 36px; font-weight: 900; color: #b8860b; line-height: 1; }
     .fb-band-label { font-size: 10px; color: #8a6d00; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
-    .fb-section-title { font-family: Georgia, serif; font-size: 13.5px; font-weight: 700; color: #9a0c23; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid #ffd6dc; padding-bottom: 3px; margin: 18px 0 9px; }
+    .fb-section-title { font-family: Arial, Helvetica, sans-serif; font-size: 13.5px; font-weight: 700; color: #9a0c23; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid #ffd6dc; padding-bottom: 3px; margin: 18px 0 9px; }
     .fb-good-title { color: #15803d; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
     .fb-bad-title  { color: #b45309; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
     .fb-list       { padding-left: 17px; margin: 3px 0 7px; }
     .fb-list li    { margin-bottom: 3px; font-size: 13px; }
     .fb-err-mark   { color: #dc2626; text-decoration: line-through; background: #fee2e2; padding: 1px 4px; border-radius: 3px; font-size: 12.5px; }
     .fb-fix-mark   { color: #16a34a; background: #dcfce7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12.5px; }
-    .fb-ipa-mark   { color: #c8102e; font-weight: 600; font-family: monospace; }
+    .fb-ipa-mark   { color: #c8102e; font-weight: 600; font-family: Arial, Helvetica, sans-serif; }
     .fb-word-mark  { background: #fef3c7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12.5px; }
     .fb-word-link  { text-decoration: none; color: inherit; }
     .fb-note       { color: #6b7280; font-style: italic; font-size: 12px; }
     .fb-encourage  { margin-top: 16px; padding: 12px 14px; background: #fff0f2; border-left: 4px solid #c8102e; border-radius: 6px; font-style: italic; color: #9a0c23; font-size: 13px; }
-    .fb-scores-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 11px 0; font-family: monospace; }
+    .fb-scores-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 11px 0; font-family: Arial, Helvetica, sans-serif; }
     .fb-scores-table th { background: #fff0f2; color: #9a0c23; padding: 5px 9px; text-align: left; font-size: 10px; text-transform: uppercase; }
     .fb-scores-table td { padding: 5px 9px; border-bottom: 1px solid #e5e7eb; color: #4b5563; }
     .fb-scores-table .tr-total td { font-weight: 700; background: #fef9ec; color: #8a6d00; }
@@ -785,8 +789,11 @@ const AI_KEY_LS   = 'ielts_ai_key';
 const AI_MODEL_LS = 'ielts_ai_model';
 let _scanCategory = 'vocab';   // 'vocab' | 'grammar' — mục tiêu modal quét lỗi
 
-/** API key đã lưu (chuỗi rỗng nếu chưa có) */
-function getAIKey()   { return (localStorage.getItem(AI_KEY_LS) || '').trim(); }
+/** API key đang dùng: ưu tiên key nhập trong modal, sau đó key dán sẵn ở data.js */
+function getAIKey() {
+  const saved = (localStorage.getItem(AI_KEY_LS) || '').trim();
+  return saved || (AI_CONFIG.apiKey || '').trim();
+}
 
 /** Model đang chọn (mặc định AI_CONFIG.defaultModel) */
 function getAIModel() { return localStorage.getItem(AI_MODEL_LS) || AI_CONFIG.defaultModel; }
