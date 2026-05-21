@@ -8,7 +8,7 @@
    KHỞI TẠO
    ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('hv-date').value = todayStr();
+  document.getElementById('hv-date').value = todayISO();
   renderAllLists();
   initAI();
 });
@@ -242,7 +242,7 @@ function getPronWords() {
 function generate() {
   const name    = document.getElementById('hv-name').value.trim() || 'em';
   const cls     = document.getElementById('hv-class').value.trim();
-  const date    = document.getElementById('hv-date').value.trim();
+  const date    = fmtDate(document.getElementById('hv-date').value);
   const part    = document.getElementById('hv-part').value;
   const pronoun = document.getElementById('hv-pronoun').value;
 
@@ -536,7 +536,7 @@ function loadDraft() {
     // Thông tin học viên
     document.getElementById('hv-name').value    = d.name    || '';
     document.getElementById('hv-class').value   = d.cls     || '';
-    document.getElementById('hv-date').value    = d.date    || todayStr();
+    document.getElementById('hv-date').value    = d.date    || todayISO();
     document.getElementById('fc-extra').value   = d.fcExtra || '';
     document.getElementById('p-words').value    = d.pWords  || '';
     document.getElementById('p-extra').value    = d.pExtra  || '';
@@ -593,7 +593,7 @@ function resetAll() {
   });
 
   // Reset date, encouragement
-  document.getElementById('hv-date').value    = todayStr();
+  document.getElementById('hv-date').value    = todayISO();
   document.getElementById('encourage').value  = ENC_LIST[0];
 
   // Clear error rows & tags
@@ -624,9 +624,23 @@ function setEnc(i) {
    UTILITY HELPERS
    ================================================================ */
 
-/** Ngày hôm nay dạng dd/mm/yyyy (vi-VN) */
+/** Ngày hôm nay dạng dd/mm/yyyy (vi-VN) — dùng cho tên file tải về */
 function todayStr() {
   return new Date().toLocaleDateString('vi-VN');
+}
+
+/** Ngày hôm nay dạng yyyy-mm-dd — dùng cho <input type="date"> */
+function todayISO() {
+  const d  = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Đổi yyyy-mm-dd → dd/mm/yyyy để hiển thị (chuỗi khác giữ nguyên) */
+function fmtDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  return m ? `${+m[3]}/${+m[2]}/${m[1]}` : String(iso || '');
 }
 
 /** Escape HTML entities để tránh XSS */
@@ -1054,7 +1068,7 @@ function renderHistory(filter) {
     recs.forEach(r => {
       html += `<div class="hist-row">
         <div class="hist-meta">
-          <b>${esc(r.date || '—')}</b>${r.cls ? ' · ' + esc(r.cls) : ''}
+          <b>${esc(fmtDate(r.date) || '—')}</b>${r.cls ? ' · ' + esc(r.cls) : ''}
           <span class="hist-sub">Nhận xét đã chọn: FC ${r.scores.fc} · LR ${r.scores.lr} · GRA ${r.scores.gra} · PRON ${r.scores.p}</span>
         </div>
         <div class="hist-actions">
@@ -1114,7 +1128,7 @@ function openClassSummary() {
     body += `<tr>
       <td class="sum-name">${esc(r.name)}</td>
       <td>${esc(r.cls || '—')}</td>
-      <td>${esc(r.date || '—')}</td>
+      <td>${esc(fmtDate(r.date) || '—')}</td>
       <td>${r.scores.fc}</td><td>${r.scores.lr}</td>
       <td>${r.scores.gra}</td><td>${r.scores.p}</td>
     </tr>`;
