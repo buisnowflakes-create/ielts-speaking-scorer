@@ -774,3 +774,301 @@ function toast(msg) {
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
+
+/* ================================================================
+   TRỢ LÝ AI — Google Gemini
+   3 tính năng: (1) sửa lỗi theo dòng, (2) quét lỗi từ transcript,
+   (3) trau chuốt feedback. Phụ thuộc: AI_CONFIG, AI_SCHEMAS,
+   AI_PROMPTS (định nghĩa trong data.js).
+   ================================================================ */
+const AI_KEY_LS   = 'ielts_ai_key';
+const AI_MODEL_LS = 'ielts_ai_model';
+let _scanCategory = 'vocab';   // 'vocab' | 'grammar' — mục tiêu modal quét lỗi
+
+/** API key đã lưu (chuỗi rỗng nếu chưa có) */
+function getAIKey()   { return (localStorage.getItem(AI_KEY_LS) || '').trim(); }
+
+/** Model đang chọn (mặc định AI_CONFIG.defaultModel) */
+function getAIModel() { return localStorage.getItem(AI_MODEL_LS) || AI_CONFIG.defaultModel; }
+
+/** Khởi tạo phần AI — gọi 1 lần khi tải trang */
+function initAI() {
+  const sel = document.getElementById('ai-model');
+  if (sel && !sel.options.length) {
+    AI_CONFIG.models.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m;
+      o.textContent = m;
+      sel.appendChild(o);
+    });
+  }
+  refreshAIBadge();
+}
+
+/** Cập nhật chấm trạng thái trên nút "Trợ lý AI" (xanh = đã có key) */
+function refreshAIBadge() {
+  document.getElementById('ai-btn')?.classList.toggle('ready', !!getAIKey());
+}
+
+/* ---------------- MODAL ---------------- */
+function openModal(id)  { document.getElementById(id)?.classList.add('show'); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('show'); }
+
+/** Mở modal cài đặt AI */
+function openAIModal() {
+  document.getElementById('ai-key').value   = getAIKey();
+  document.getElementById('ai-model').value = getAIModel();
+  document.getElementById('ai-test-st').textContent = '';
+  openModal('ai-modal');
+}
+
+/** Lưu cài đặt AI từ modal vào localStorage */
+function saveAISettings() {
+  const key   = document.getElementById('ai-key').value.trim();
+  const model = document.getElementById('ai-model').value;
+  localStorage.setItem(AI_KEY_LS, key);
+  localStorage.setItem(AI_MODEL_LS, model);
+  refreshAIBadge();
+  toast(key ? '✅ Đã lưu cài đặt Trợ lý AI!' : '✅ Đã lưu (chưa nhập API key).');
+  closeModal('ai-modal');
+}
+
+/** Kiểm tra kết nối Gemini bằng key/model đang nhập trong modal */
+async function aiTest(btn) {
+  const key   = document.getElementById('ai-key').value.trim();
+  const model = document.getElementById('ai-model').value;
+  const st    = document.getElementById('ai-test-st');
+
+  if (!key) {
+    st.style.color = '#f87171';
+    st.textContent = '⚠ Hãy nhập API key trước.';
+    return;
+  }
+
+  // Lưu tạm để callGemini sử dụng
+  localStorage.setItem(AI_KEY_LS, key);
+  localStorage.setItem(AI_MODEL_LS, model);
+  refreshAIBadge();
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Đang kiểm tra...';
+  st.textContent = '';
+  try {
+    await callGemini('Trả lời đúng một từ: OK', { temperature: 0 });
+    st.style.color = '#4ade80';
+    st.textContent = '✅ Kết nối thành công — Trợ lý AI đã sẵn sàng!';
+  } catch (e) {
+    st.style.color = '#f87171';
+    st.textContent = '❌ ' + aiErr(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/** Bảo đảm đã có API key; nếu chưa thì nhắc + mở modal */
+function ensureAIKey() {
+  if (getAIKey()) return true;
+  toast('⚠ Chưa có API key — hãy mở "Trợ lý AI" để nhập.');
+  openAIModal();
+  return false;
+}
+
+/** Đổi lỗi kỹ thuật sang thông báo tiếng Việt dễ hiểu */
+function aiErr(e) {
+  const m = String((e && e.message) || e || '');
+  if (m === 'NO_KEY')                                       return 'chưa nhập API key';
+  if (/API_KEY_INVALID|api key not valid/i.test(m))         return 'API key không hợp lệ';
+  if (/quota|RESOURCE_EXHAUSTED|\b429\b/i.test(m))          return 'đã hết hạn mức (quota) — thử lại sau';
+  if (/not found|\b404\b/i.test(m))                         return 'model không khả dụng — thử đổi model khác';
+  if (/failed to fetch|networkerror|load failed/i.test(m))  return 'không kết nối được — kiểm tra mạng';
+  return m.slice(0, 140);
+}
+
+/**
+ * Gọi Gemini API.
+ * @param {string} prompt - nội dung prompt
+ * @param {{json?:boolean, schema?:object, temperature?:number}} opts
+ * @returns {Promise<string>} text trả về (đã trim)
+ */
+async function callGemini(prompt, opts = {}) {
+  const key = getAIKey();
+  if (!key) throw new Error('NO_KEY');
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: opts.temperature ?? 0.4 },
+  };
+  if (opts.json) {
+    body.generationConfig.responseMimeType = 'application/json';
+    if (opts.schema) body.generationConfig.responseSchema = opts.schema;
+  }
+
+  const res = await fetch(
+    `${AI_CONFIG.endpoint(getAIModel())}?key=${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      if (j && j.error && j.error.message) msg = j.error.message;
+    } catch (e) { /* giữ msg mặc định */ }
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const cand = data && data.candidates && data.candidates[0];
+  const text = ((cand && cand.content && cand.content.parts) || [])
+    .map(p => p.text || '')
+    .join('')
+    .trim();
+
+  if (!text) {
+    const why = (cand && cand.finishReason)
+      || (data && data.promptFeedback && data.promptFeedback.blockReason);
+    throw new Error(why ? `bị chặn (${why})` : 'không có nội dung trả về');
+  }
+  return text;
+}
+
+/* ---------- TÍNH NĂNG 1: SỬA LỖI THEO DÒNG ----------
+   Giáo viên gõ "Câu/cụm sai" → AI điền "Sửa lại" + ghi chú.        */
+async function aiFixRow(btn) {
+  if (!ensureAIKey()) return;
+
+  const errRow  = btn.closest('.err-row');
+  const wrap    = errRow.parentElement;
+  const wrongEl = errRow.querySelector('[data-role="wrong"]');
+  const rightEl = errRow.querySelector('[data-role="right"]');
+  const noteEl  = wrap.querySelector('[data-role="note"]');
+
+  const wrong = wrongEl.value.trim();
+  if (!wrong) {
+    toast('Hãy gõ câu/cụm sai trước nhé.');
+    wrongEl.focus();
+    return;
+  }
+
+  const cat = (wrap.parentElement && wrap.parentElement.id === 'gra-errors')
+    ? 'grammar' : 'vocab';
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const txt = await callGemini(AI_PROMPTS.fixOne(cat, wrong), {
+      json: true, schema: AI_SCHEMAS.fixOne, temperature: 0.3,
+    });
+    const obj = JSON.parse(txt);
+    if (obj.right) rightEl.value = obj.right;
+    if (obj.note)  noteEl.value  = obj.note;
+    toast('✨ AI đã gợi ý phần sửa — kiểm tra lại nhé!');
+  } catch (e) {
+    toast('❌ AI lỗi: ' + aiErr(e));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/* ---------- TÍNH NĂNG 2: QUÉT LỖI TỪ TRANSCRIPT ---------- */
+
+/** Mở modal quét lỗi cho 1 nhóm tiêu chí ('vocab' | 'grammar') */
+function openScanModal(category) {
+  _scanCategory = category === 'grammar' ? 'grammar' : 'vocab';
+  const isGram = _scanCategory === 'grammar';
+  document.getElementById('scan-title').textContent =
+    isGram ? '✨ AI quét lỗi ngữ pháp' : '✨ AI quét lỗi từ vựng';
+  document.getElementById('scan-hint').innerHTML = isGram
+    ? 'AI sẽ đọc đoạn văn và tự thêm các lỗi <b>ngữ pháp</b> vào mục “Lỗi ngữ pháp cụ thể”.'
+    : 'AI sẽ đọc đoạn văn và tự thêm các lỗi <b>từ vựng / collocation</b> vào mục “Lỗi từ vựng”.';
+  openModal('scan-modal');
+  document.getElementById('scan-text').focus();
+}
+
+/** Quét transcript → tự thêm các dòng lỗi vào danh sách tương ứng */
+async function runScan(btn) {
+  if (!ensureAIKey()) return;
+
+  const text = document.getElementById('scan-text').value.trim();
+  if (!text) {
+    toast('Hãy dán đoạn học viên nói vào đã.');
+    return;
+  }
+
+  const container = _scanCategory === 'grammar' ? 'gra-errors' : 'lr-errors';
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Đang quét...';
+  try {
+    const txt = await callGemini(AI_PROMPTS.scan(_scanCategory, text), {
+      json: true, schema: AI_SCHEMAS.scan, temperature: 0.3,
+    });
+    const arr = JSON.parse(txt);
+    if (!Array.isArray(arr) || !arr.length) {
+      toast('✓ AI không tìm thấy lỗi nào đáng kể.');
+    } else {
+      arr.forEach(e => addErrRow(container, e.wrong || '', e.right || '', e.note || ''));
+      toast(`✨ Đã thêm ${arr.length} lỗi — kiểm tra & chỉnh lại nhé!`);
+      closeModal('scan-modal');
+    }
+  } catch (e) {
+    toast('❌ AI lỗi: ' + aiErr(e));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/* ---------- TÍNH NĂNG 3: TRAU CHUỐT FEEDBACK ---------- */
+
+/** Gửi feedback hiện tại cho AI viết lại mượt hơn (giữ nguyên HTML) */
+async function aiPolish(btn) {
+  if (!ensureAIKey()) return;
+
+  const el = document.getElementById('preview');
+  if (el.querySelector('.empty-state')) {
+    toast('Hãy bấm “✨ Tạo Feedback” trước đã.');
+    return;
+  }
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Đang trau chuốt...';
+  try {
+    let out = await callGemini(
+      AI_PROMPTS.polish + '\n\nHTML cần viết lại:\n' + el.innerHTML,
+      { temperature: 0.6 }
+    );
+    // Bỏ rào ```html nếu AI lỡ thêm
+    out = out.replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    // Kiểm tra cấu trúc còn nguyên vẹn trước khi áp dụng
+    if (out[0] !== '<' || !/fb-band-num/.test(out) || !/fb-section-title/.test(out)) {
+      toast('❌ Kết quả AI không hợp lệ — giữ nguyên bản cũ.');
+      return;
+    }
+    el.innerHTML = out;
+    toast('✨ Đã trau chuốt! Soát lại điểm số rồi mới gửi. (Bấm “Tạo Feedback” để về bản gốc)');
+  } catch (e) {
+    toast('❌ AI lỗi: ' + aiErr(e));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/* ---------- OXFORD LEARNER'S DICTIONARY ---------- */
+
+/** Link tra cứu 1 từ trên Oxford Learner's Dictionary */
+function oxfordURL(word) {
+  const w = String(word == null ? '' : word).trim();
+  return 'https://www.oxfordlearnersdictionaries.com/search/english/?q=' + encodeURIComponent(w);
+}

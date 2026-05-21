@@ -23,6 +23,38 @@ Mở `index.html` trực tiếp trong trình duyệt — **không cần server**
 
 ---
 
+## Trợ lý AI (Google Gemini)
+
+Tool tích hợp AI để **tìm & sửa lỗi** và **trau chuốt feedback**, dùng Google Gemini.
+
+### Thiết lập (1 lần)
+
+1. Bấm nút **🤖 Trợ lý AI** ở góc trên bên phải.
+2. Lấy API key **miễn phí** tại <https://aistudio.google.com/app/apikey>.
+3. Dán key vào ô **Gemini API Key**, chọn **Model**, bấm **🧪 Kiểm tra kết nối** rồi **💾 Lưu**.
+
+> 🔒 API key chỉ lưu trong `localStorage` của trình duyệt trên máy này — không gửi đi đâu ngoài Google.
+
+### 3 tính năng AI
+
+| Tính năng | Cách dùng |
+|-----------|-----------|
+| **Sửa lỗi theo dòng** | Ở mục "Lỗi từ vựng/ngữ pháp", gõ câu sai vào ô **Câu/cụm sai** rồi bấm **✨** — AI tự điền ô "Sửa lại" + ghi chú giải thích. |
+| **Quét lỗi từ transcript** | Bấm **✨ AI quét lỗi từ transcript**, dán đoạn học viên nói — AI tự tìm lỗi và thêm vào danh sách. |
+| **Trau chuốt feedback** | Sau khi bấm "Tạo Feedback", bấm **✨ AI trau chuốt** — AI viết lại cho mượt, vẫn giữ nguyên điểm số & cấu trúc. |
+
+Luôn **kiểm tra lại** kết quả AI gợi ý trước khi gửi học viên.
+
+---
+
+## Oxford Learner's Dictionary
+
+Mỗi từ trong phần Pronunciation có nút **📖** mở thẳng trang tra cứu trên
+Oxford Learner's Dictionary (nghĩa, IPA, audio chuẩn UK/US). Phần feedback xuất
+ra cho học viên cũng kèm link Oxford cho từng từ luyện phát âm.
+
+---
+
 ## Cách maintain
 
 ### Thêm / sửa / xóa nhận xét → `data.js`
@@ -92,6 +124,21 @@ Các hàm chính:
 | `dlPDF()` | Mở print dialog để xuất PDF |
 | `saveDraft()` / `loadDraft()` | Lưu/mở nháp qua localStorage |
 | `resetAll()` | Reset form |
+| `callGemini()` | Gọi Google Gemini API |
+| `aiFixRow()` | AI gợi ý sửa 1 dòng lỗi |
+| `runScan()` | AI quét lỗi từ transcript |
+| `aiPolish()` | AI trau chuốt feedback |
+
+### Chỉnh prompt / model AI → `data.js`
+
+```js
+const AI_CONFIG  = { defaultModel: 'gemini-2.5-flash', models: [ ... ] };
+const AI_PROMPTS = {
+  fixOne: (cat, wrong) => `...`,   // prompt sửa 1 câu lỗi
+  scan:   (cat, text)  => `...`,   // prompt quét transcript
+  polish: `...`,                   // prompt trau chuốt feedback
+};
+```
 
 ---
 
@@ -102,6 +149,8 @@ Các hàm chính:
 - ✅ Ước tính Band Score (2.0 – 9.0)
 - ✅ Thêm lỗi từ vựng / ngữ pháp cụ thể (sai → đúng + giải thích)
 - ✅ Tra IPA tự động (local dict + dictionaryapi.dev)
+- ✅ Trợ lý AI (Google Gemini): sửa lỗi theo dòng, quét lỗi từ transcript, trau chuốt feedback
+- ✅ Tra cứu Oxford Learner's Dictionary cho từ luyện phát âm
 - ✅ Tạo feedback đầy đủ với bảng điểm + highlight màu
 - ✅ Copy feedback có định dạng (paste vào Zalo/Word/Notion)
 - ✅ Tải file .html standalone (gửi học viên)

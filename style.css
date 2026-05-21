@@ -422,7 +422,7 @@ textarea { resize: vertical; line-height: 1.5; }
    ================================================================ */
 .err-row {
   display: grid;
-  grid-template-columns: 1fr 24px 1fr 30px;
+  grid-template-columns: 1fr 16px 1fr auto auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 4px;
@@ -614,6 +614,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .fb-fix-mark  { color: #16a34a; background: #dcfce7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12px; }
 .fb-ipa-mark  { color: #c8102e; font-weight: 600; font-family: monospace; }
 .fb-word-mark { background: #fef3c7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12px; }
+.fb-word-link { text-decoration: none; color: inherit; }
 .fb-note      { color: #6b7280; font-style: italic; font-size: 11.5px; }
 
 .fb-encourage {
@@ -669,13 +670,181 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 
 /* ================================================================
+   TRỢ LÝ AI + MODAL
+   ================================================================ */
+
+/* Header: nhóm nút AI + band pill */
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+
+.hdr-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(124,58,237,.16);
+  color: #c4b5fd;
+  border: 1px solid rgba(124,58,237,.45);
+  border-radius: var(--r-sm);
+  padding: 8px 13px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.hdr-ai-btn:hover { background: rgba(124,58,237,.3); color: #ddd6fe; }
+.hdr-ai-btn .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: all .2s;
+}
+.hdr-ai-btn.ready .dot { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+
+/* Nút AI nhấn mạnh (kiểu primary, màu tím) */
+.btn-ai {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(124,58,237,.32);
+}
+.btn-ai:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(124,58,237,.45);
+}
+.btn-ai:disabled { opacity: .6; cursor: progress; transform: none; }
+
+/* Nút AI mini (trong dòng lỗi + hàng action) */
+.btn-ai-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  background: rgba(124,58,237,.14);
+  color: #a78bfa;
+  border: 1px solid rgba(124,58,237,.4);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .12s;
+}
+.btn-ai-mini:hover { background: rgba(124,58,237,.28); color: #c4b5fd; }
+.btn-ai-mini:disabled { opacity: .55; cursor: progress; }
+
+/* Hàng action dưới danh sách lỗi */
+.err-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+
+/* Dòng gợi ý nhỏ */
+.ai-tip {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+.ai-tip b { color: #a78bfa; }
+
+/* Spinner loading */
+.spin {
+  display: inline-block;
+  width: 11px; height: 11px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: -1px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Link Oxford trong word tag */
+.word-tag a.ox-link {
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1;
+  filter: grayscale(.35);
+  transition: filter .12s;
+}
+.word-tag a.ox-link:hover { filter: grayscale(0); }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.66);
+  backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 300;
+}
+.modal-overlay.show { display: flex; }
+
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  animation: fadeIn .2s ease both;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.modal-x {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.modal-x:hover { color: var(--text); }
+.modal-body { padding: 16px 18px; overflow-y: auto; }
+.modal-actions {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
+  margin-top: 15px;
+}
+
+/* Hộp gợi ý trong modal */
+.ai-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-top: 10px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+}
+.ai-hint a { color: #a78bfa; }
+
+/* ================================================================
    PRINT STYLES (PDF export via Ctrl+P / window.print())
    ================================================================ */
 @media print {
   body { background: #fff !important; color: #111 !important; font-family: Arial, sans-serif !important; }
 
   /* Hide everything except preview */
-  header, .input-pane, .btn-row, .preview-actions, .toast { display: none !important; }
+  header, .input-pane, .btn-row, .preview-actions, .toast, .modal-overlay { display: none !important; }
   .wrap         { display: block !important; padding: 0 !important; }
   .preview-pane { position: static !important; }
 
