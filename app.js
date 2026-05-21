@@ -10,7 +10,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('hv-date').value = todayISO();
   renderAllLists();
+  restoreAutoSave();          // khôi phục bài đang làm dở (nếu có)
   initAI();
+
+  // Tự động lưu mọi thay đổi vào trình duyệt — F5 / đóng tab không mất dữ liệu
+  document.addEventListener('input',  scheduleAutoSave);
+  document.addEventListener('change', scheduleAutoSave);
+  window.addEventListener('beforeunload', autoSave);
 });
 
 /* Đóng modal đang mở khi bấm phím Esc */
@@ -239,6 +245,52 @@ function getPronWords() {
    TẠO FEEDBACK (generate)
    Xây dựng HTML feedback từ các checkbox đã tick + lỗi cụ thể
    ================================================================ */
+
+/** Mã hoá object → chuỗi base64 URL-safe (dùng cho link luyện tập) */
+function encodeData(obj) {
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Tạo URL trang luyện tập (practice.html cùng thư mục) kèm dữ liệu lỗi */
+function practiceURL(payload) {
+  const base = location.href.split('?')[0].split('#')[0]
+    .replace(/[^/]*$/, 'practice.html');
+  return base + '?d=' + encodeData(payload);
+}
+
+/** Rút gọn 1 URL qua dịch vụ miễn phí (is.gd → v.gd → tinyurl). Trả null nếu lỗi. */
+async function shortenURL(longUrl) {
+  const apis = [
+    'https://is.gd/create.php?format=simple&url=',
+    'https://v.gd/create.php?format=simple&url=',
+    'https://tinyurl.com/api-create.php?url=',
+  ];
+  for (const api of apis) {
+    try {
+      const res = await fetch(api + encodeURIComponent(longUrl));
+      if (!res.ok) continue;
+      const txt = (await res.text()).trim();
+      if (/^https?:\/\/\S+$/i.test(txt) && txt.length < longUrl.length) return txt;
+    } catch (e) { /* thử dịch vụ kế tiếp */ }
+  }
+  return null;
+}
+
+/** Rút gọn link luyện tập rồi cập nhật vào feedback (chạy ngầm) */
+async function shortenPracticeLink(longUrl) {
+  const short   = await shortenURL(longUrl);
+  const linkEl  = document.getElementById('fb-practice-a');
+  const shortEl = document.getElementById('fb-shorturl');
+  if (short) {
+    if (linkEl)  linkEl.href = short;          // nút bấm trỏ tới link ngắn
+    if (shortEl) shortEl.textContent = short;  // hiện link ngắn để gõ tay khi in giấy
+    toast('✅ Link ngắn đã sẵn sàng — giờ có thể xuất PDF / tải .html.');
+  } else if (shortEl) {
+    shortEl.textContent = '(không tạo được link ngắn — em bấm vào nút ở trên nhé)';
+  }
+}
+
 function generate() {
   const name    = document.getElementById('hv-name').value.trim() || 'em';
   const cls     = document.getElementById('hv-class').value.trim();
@@ -366,6 +418,31 @@ function generate() {
     }
   });
 
+  /* ----- Link bài luyện tập cá nhân hoá -----
+     Hiện khi có lỗi từ vựng / ngữ pháp / từ phát âm để học viên luyện lại. */
+  let _practiceURL = '';
+  {
+    const _vErr = getErrRows('lr-errors');
+    const _gErr = getErrRows('gra-errors');
+    const _pW   = getPronWords();
+    if (_vErr.length || _gErr.length || _pW.length) {
+      const _payload = {
+        n: name,
+        d: date,
+        v: _vErr.map(e => ({ w: e.wrong, r: e.right, x: e.note })),
+        g: _gErr.map(e => ({ w: e.wrong, r: e.right, x: e.note })),
+        p: _pW.map(w => ({ w: w.word, i: (w.ipa && w.ipa !== '/?/') ? w.ipa : '' })),
+      };
+      _practiceURL = practiceURL(_payload);
+      html += `<div class="fb-practice-link">
+        <div class="fb-practice-title">🎯 Bài luyện tập riêng cho ${esc(name)}</div>
+        <div>Em bấm vào nút bên dưới — hoặc gõ link ngắn vào trình duyệt — để luyện lại các lỗi từ vựng / ngữ pháp đã sửa và nghe phát âm chuẩn các từ cần cải thiện nhé:</div>
+        <a class="fb-practice-btn" id="fb-practice-a" href=" PURL " target="_blank" rel="noopener">👉 Click vào đây để luyện nói</a>
+        <div class="fb-practice-short">🔗 Link ngắn (gõ vào trình duyệt): <b id="fb-shorturl">⏳ đang tạo link ngắn…</b></div>
+      </div>`;
+    }
+  }
+
   /* ----- Câu động viên ----- */
   const enc = document.getElementById('encourage').value.trim();
   if (enc) {
@@ -381,8 +458,16 @@ function generate() {
       .replace(/\bem\b/g, pronoun);
   }
 
+  /* Chèn URL luyện tập SAU khi thay xưng hô — tránh làm hỏng chuỗi base64 */
+  if (_practiceURL) {
+    html = html.split(' PURL ').join(escAttr(_practiceURL));
+  }
+
   document.getElementById('preview').innerHTML = html;
   toast('✅ Đã tạo feedback thành công!');
+
+  // Rút gọn link luyện tập (chạy ngầm) — để in giấy học viên gõ tay được
+  if (_practiceURL) shortenPracticeLink(_practiceURL);
 }
 
 /* ================================================================
@@ -443,6 +528,11 @@ function dlHTML() {
     .fb-word-link  { text-decoration: none; color: inherit; }
     .fb-note       { color: #6b7280; font-style: italic; font-size: 12px; }
     .fb-encourage  { margin-top: 16px; padding: 12px 14px; background: #fff0f2; border-left: 4px solid #c8102e; border-radius: 6px; font-style: italic; color: #9a0c23; font-size: 13px; }
+    .fb-practice-link  { margin-top: 16px; padding: 13px 15px; background: #eef2ff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5; border-radius: 6px; font-size: 13px; color: #3730a3; }
+    .fb-practice-title { font-weight: 700; margin-bottom: 3px; }
+    .fb-practice-btn   { display: inline-block; margin-top: 9px; background: #eef2ff; color: #3730a3; border: 1.5px solid #4f46e5; text-decoration: none; font-weight: 700; padding: 9px 18px; border-radius: 8px; font-size: 12.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .fb-practice-short { margin-top: 9px; font-size: 12px; color: #3730a3; }
+    .fb-practice-short b { font-size: 13px; color: #4338ca; word-break: break-all; }
   `;
 
   const doc = `<!DOCTYPE html>
@@ -470,106 +560,240 @@ function dlHTML() {
   toast('✅ Đã tải file .html!');
 }
 
-/**
- * Xuất PDF bằng print dialog của trình duyệt.
- * CSS @media print trong style.css đã ẩn form, chỉ in preview.
- * Người dùng chọn "Save as PDF" trong hộp thoại in.
- */
-function dlPDF() {
+/* ---------- XUẤT PDF (xem trước → In / Tải về) ----------
+   Dùng jsPDF + html2canvas, tải động từ CDN khi cần (lần đầu cần internet). */
+let _pdfLibsLoaded = false;
+let _pdfDoc     = null;            // jsPDF instance của lần xuất gần nhất
+let _pdfBlobURL = '';              // blob URL để xem trước trong iframe
+let _pdfName    = 'feedback.pdf';  // tên file khi tải về
+
+/** Nạp 1 file script ngoài, trả Promise */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('không tải được thư viện'));
+    document.head.appendChild(s);
+  });
+}
+
+/** Bảo đảm jsPDF + html2canvas đã sẵn sàng */
+async function ensurePdfLibs() {
+  if (_pdfLibsLoaded) return;
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  _pdfLibsLoaded = true;
+}
+
+/** Xuất feedback thành file PDF và tải về (1 bấm) */
+async function dlPDF() {
   const el = document.getElementById('preview');
   if (el.querySelector('.empty-state')) { toast('Hãy tạo feedback trước.'); return; }
-  toast('🖨 Đang mở hộp thoại in PDF...');
-  setTimeout(() => window.print(), 400);
+
+  // Nếu link ngắn đang tạo dở → nhắc chờ để PDF không lỡ chụp lúc "đang tạo"
+  const shortEl = document.getElementById('fb-shorturl');
+  if (shortEl && shortEl.textContent.includes('⏳')) {
+    toast('⏳ Link ngắn đang tạo — đợi 1-2 giây rồi bấm Xuất PDF nhé.');
+    return;
+  }
+
+  toast('🖨 Đang tạo PDF...');
+  // Bỏ giới hạn chiều cao để chụp trọn nội dung
+  const oldMaxH = el.style.maxHeight, oldOv = el.style.overflow;
+  el.style.maxHeight = 'none';
+  el.style.overflow  = 'visible';
+  try {
+    await ensurePdfLibs();
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    el.style.maxHeight = oldMaxH;
+    el.style.overflow  = oldOv;
+
+    const { jsPDF } = window.jspdf;
+    const pdf    = new jsPDF('p', 'mm', 'a4');
+    const margin = 10;
+    const pageW  = pdf.internal.pageSize.getWidth();
+    const pageH  = pdf.internal.pageSize.getHeight();
+    const imgW   = pageW - margin * 2;
+    const imgH   = canvas.height * imgW / canvas.width;
+    const usableH = pageH - margin * 2;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    let heightLeft = imgH;
+    let posY = margin;
+    pdf.addImage(imgData, 'JPEG', margin, posY, imgW, imgH);
+    heightLeft -= usableH;
+    while (heightLeft > 0) {
+      posY -= usableH;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, posY, imgW, imgH);
+      heightLeft -= usableH;
+    }
+
+    const name = document.getElementById('hv-name').value.trim() || 'student';
+    _pdfDoc  = pdf;
+    _pdfName = `Feedback_Speaking_${name.replace(/\s+/g, '_')}_${todayStr().replace(/\//g, '-')}.pdf`;
+    if (_pdfBlobURL) URL.revokeObjectURL(_pdfBlobURL);
+    _pdfBlobURL = pdf.output('bloburl');
+    document.getElementById('pdf-frame').src = _pdfBlobURL;
+    openModal('pdf-modal');
+    toast('✅ PDF đã sẵn sàng — xem trước rồi bấm In / Tải về.');
+  } catch (e) {
+    el.style.maxHeight = oldMaxH;
+    el.style.overflow  = oldOv;
+    toast('❌ Không tạo được PDF (lần đầu cần internet để tải thư viện). '
+        + 'Em thử lại, hoặc dùng nút "Tải .html".');
+  }
+}
+
+/** Tải file PDF (đang xem trước) về máy */
+function downloadPDF() {
+  if (!_pdfDoc) { toast('Chưa có PDF — hãy tạo lại.'); return; }
+  _pdfDoc.save(_pdfName);
+  toast('✅ Đã tải file PDF về máy!');
+}
+
+/** In trực tiếp PDF đang xem trước */
+function printPDF() {
+  const fr = document.getElementById('pdf-frame');
+  try {
+    fr.contentWindow.focus();
+    fr.contentWindow.print();
+  } catch (e) {
+    toast('Không in trực tiếp được — em bấm "Tải về máy" rồi mở file PDF để in.');
+  }
 }
 
 /* ================================================================
-   LƯU / MỞ NHÁP
-   Dùng localStorage để lưu trạng thái form.
+   LƯU / MỞ NHÁP + TỰ ĐỘNG LƯU
+   Dùng localStorage (bộ nhớ sẵn của trình duyệt) — KHÔNG cần server/DB.
+   · DRAFT_KEY    : nháp do giáo viên chủ động lưu (nút "Lưu nháp")
+   · AUTOSAVE_KEY : tự động lưu liên tục — F5 / đóng tab vẫn còn nguyên
    ================================================================ */
-const DRAFT_KEY = 'ielts_scorer_draft_v1';
+const DRAFT_KEY    = 'ielts_scorer_draft_v1';
+const AUTOSAVE_KEY = 'ielts_scorer_autosave_v1';
 
-/** Lưu toàn bộ trạng thái form vào localStorage */
+/** Thu thập toàn bộ trạng thái form thành 1 object */
+function collectState() {
+  const checked = {};
+  document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+    const k = cb.dataset.key;
+    if (!k) return;
+    (checked[k] = checked[k] || []).push(parseInt(cb.dataset.idx));
+  });
+  return {
+    name:      document.getElementById('hv-name').value,
+    cls:       document.getElementById('hv-class').value,
+    date:      document.getElementById('hv-date').value,
+    pronoun:   document.getElementById('hv-pronoun').value,
+    fcExtra:   document.getElementById('fc-extra').value,
+    pWords:    document.getElementById('p-words').value,
+    pExtra:    document.getElementById('p-extra').value,
+    encourage: document.getElementById('encourage').value,
+    lrErrors:  getErrRows('lr-errors'),
+    graErrors: getErrRows('gra-errors'),
+    pTags:     Array.from(document.querySelectorAll('#p-tags .word-tag'))
+                    .map(t => ({ word: t.dataset.word, ipa: t.dataset.ipa })),
+    checked,
+    previewHTML: document.getElementById('preview').innerHTML,
+  };
+}
+
+/** Áp 1 object trạng thái lên form */
+function applyState(d) {
+  if (!d) return;
+  document.getElementById('hv-name').value    = d.name    || '';
+  document.getElementById('hv-class').value   = d.cls     || '';
+  document.getElementById('hv-date').value    = d.date    || todayISO();
+  document.getElementById('fc-extra').value   = d.fcExtra || '';
+  document.getElementById('p-words').value    = d.pWords  || '';
+  document.getElementById('p-extra').value    = d.pExtra  || '';
+  document.getElementById('encourage').value  = d.encourage || ENC_LIST[0];
+  if (d.pronoun) document.getElementById('hv-pronoun').value = d.pronoun;
+
+  // Checkboxes
+  document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.check-item')?.classList.remove('chk-good', 'chk-bad');
+  });
+  Object.entries(d.checked || {}).forEach(([k, idxArr]) => {
+    const isGood = k.endsWith('-good');
+    idxArr.forEach(idx => {
+      const cb = document.querySelector(`input[data-key="${k}"][data-idx="${idx}"]`);
+      if (cb) {
+        cb.checked = true;
+        cb.closest('.check-item')?.classList.add(isGood ? 'chk-good' : 'chk-bad');
+      }
+    });
+  });
+
+  // Dòng lỗi LR / GRA
+  document.getElementById('lr-errors').innerHTML  = '';
+  document.getElementById('gra-errors').innerHTML = '';
+  (d.lrErrors  || []).forEach(e => addErrRow('lr-errors',  e.wrong, e.right, e.note));
+  (d.graErrors || []).forEach(e => addErrRow('gra-errors', e.wrong, e.right, e.note));
+
+  // Word tags phát âm
+  document.getElementById('p-tags').innerHTML = '';
+  (d.pTags || []).forEach(t => addWordTag(t.word, t.ipa));
+
+  // Khung feedback đã tạo
+  if (typeof d.previewHTML === 'string' && d.previewHTML.trim()) {
+    document.getElementById('preview').innerHTML = d.previewHTML;
+  }
+}
+
+/** Lưu nháp — giáo viên chủ động bấm */
 function saveDraft() {
   try {
-    // Thu thập checkbox đã tích
-    const checked = {};
-    document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-      const k = cb.dataset.key;
-      if (!k) return;
-      if (!checked[k]) checked[k] = [];
-      checked[k].push(parseInt(cb.dataset.idx));
-    });
-
-    const draft = {
-      name:     document.getElementById('hv-name').value,
-      cls:      document.getElementById('hv-class').value,
-      date:     document.getElementById('hv-date').value,
-      pronoun:  document.getElementById('hv-pronoun').value,
-      fcExtra:  document.getElementById('fc-extra').value,
-      pWords:   document.getElementById('p-words').value,
-      pExtra:   document.getElementById('p-extra').value,
-      encourage:document.getElementById('encourage').value,
-      lrErrors: getErrRows('lr-errors'),
-      graErrors:getErrRows('gra-errors'),
-      pTags:    Array.from(document.querySelectorAll('#p-tags .word-tag'))
-                     .map(t => ({ word: t.dataset.word, ipa: t.dataset.ipa })),
-      checked,
-    };
-
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(collectState()));
     toast('✅ Đã lưu nháp!');
   } catch (e) {
     toast('❌ Không lưu được: ' + e.message);
   }
 }
 
-/** Khôi phục form từ nháp đã lưu */
+/** Mở nháp đã lưu */
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) { toast('Chưa có nháp lưu.'); return; }
-    const d = JSON.parse(raw);
-
-    // Thông tin học viên
-    document.getElementById('hv-name').value    = d.name    || '';
-    document.getElementById('hv-class').value   = d.cls     || '';
-    document.getElementById('hv-date').value    = d.date    || todayISO();
-    document.getElementById('fc-extra').value   = d.fcExtra || '';
-    document.getElementById('p-words').value    = d.pWords  || '';
-    document.getElementById('p-extra').value    = d.pExtra  || '';
-    document.getElementById('encourage').value  = d.encourage || ENC_LIST[0];
-    if (d.pronoun) document.getElementById('hv-pronoun').value = d.pronoun;
-
-    // Khôi phục checkboxes
-    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.checked = false;
-      cb.closest('.check-item')?.classList.remove('chk-good', 'chk-bad');
-    });
-    Object.entries(d.checked || {}).forEach(([k, idxArr]) => {
-      const isGood = k.endsWith('-good');
-      idxArr.forEach(idx => {
-        const cb = document.querySelector(`input[data-key="${k}"][data-idx="${idx}"]`);
-        if (cb) {
-          cb.checked = true;
-          cb.closest('.check-item')?.classList.add(isGood ? 'chk-good' : 'chk-bad');
-        }
-      });
-    });
-
-    // Khôi phục error rows
-    document.getElementById('lr-errors').innerHTML  = '';
-    document.getElementById('gra-errors').innerHTML = '';
-    (d.lrErrors  || []).forEach(e => addErrRow('lr-errors',  e.wrong, e.right, e.note));
-    (d.graErrors || []).forEach(e => addErrRow('gra-errors', e.wrong, e.right, e.note));
-
-    // Khôi phục pronunciation tags
-    document.getElementById('p-tags').innerHTML = '';
-    (d.pTags || []).forEach(t => addWordTag(t.word, t.ipa));
-
+    applyState(JSON.parse(raw));
     toast('✅ Đã mở nháp!');
   } catch (e) {
     toast('❌ Lỗi khi mở nháp: ' + e.message);
   }
+}
+
+/* ---------- TỰ ĐỘNG LƯU (auto-save) ---------- */
+
+/** Ghi trạng thái hiện tại vào localStorage — chạy ngầm, không báo */
+function autoSave() {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(collectState()));
+  } catch (e) { /* hết bộ nhớ — bỏ qua */ }
+}
+
+/** Lưu sau 0.6s kể từ thay đổi cuối (gộp nhiều lần gõ) */
+let _autoSaveTimer;
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(autoSave, 600);
+}
+
+/** Khôi phục bài đang làm dở khi tải trang */
+function restoreAutoSave() {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    applyState(d);
+    const hasData = (d.name && d.name.trim())
+      || Object.keys(d.checked || {}).length
+      || (d.lrErrors || []).length || (d.graErrors || []).length
+      || (d.pWords && d.pWords.trim()) || (d.pTags || []).length;
+    if (hasData) toast('↩ Đã khôi phục bài đang làm dở.');
+  } catch (e) { /* autosave hỏng — bỏ qua */ }
 }
 
 /** Reset toàn bộ form về trạng thái ban đầu */

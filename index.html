@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IELTS Speaking Scorer – LangGo</title>
+  <title>IELTS Speaking Scorer – Phuong Bui</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -322,6 +322,24 @@
     <div class="modal-body">
       <div class="ai-hint">Bảng lấy <b>bài mới nhất</b> của mỗi học viên đã lưu trong lịch sử.</div>
       <div id="summary-body" style="margin-top: 12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Xem trước PDF ===== -->
+<div class="modal-overlay" id="pdf-modal" onclick="if(event.target===this)closeModal('pdf-modal')">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h3>🖨 Xem trước PDF</h3>
+      <button class="modal-x" onclick="closeModal('pdf-modal')" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <iframe id="pdf-frame" class="pdf-frame" title="Xem trước PDF"></iframe>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('pdf-modal')">Đóng</button>
+        <button class="btn btn-secondary" onclick="printPDF()">🖨 In</button>
+        <button class="btn btn-primary" onclick="downloadPDF()">⬇ Tải về máy</button>
+      </div>
     </div>
   </div>
 </div>

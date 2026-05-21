@@ -8,11 +8,14 @@ Tool tạo feedback Speaking IELTS bằng checkbox, xuất HTML/PDF.
 
 ```
 ielts-scorer/
-├── index.html   ← Giao diện chính (HTML thuần)
-├── style.css    ← Toàn bộ CSS (dark theme + print styles)
-├── data.js      ← Dữ liệu: presets, IPA dict, cấu hình AI
-├── app.js       ← Logic: render, scoring, IPA, generate, export
-└── README.md    ← File này
+├── index.html    ← Giao diện chính của tool (giáo viên dùng)
+├── style.css     ← CSS cho tool
+├── data.js       ← Dữ liệu: presets, IPA dict, cấu hình AI
+├── app.js        ← Logic: render, generate, export, AI, lịch sử
+├── practice.html ← Trang luyện tập cá nhân hoá (học viên dùng)
+├── practice.css  ← CSS cho trang luyện tập
+├── practice.js   ← Logic trang luyện tập (đọc dữ liệu từ link)
+└── README.md     ← File này
 ```
 
 ---
@@ -67,6 +70,23 @@ Luôn **kiểm tra lại** kết quả AI gợi ý trước khi gửi học viê
 Mỗi từ trong phần Pronunciation có nút **📖** mở thẳng trang tra cứu trên
 Oxford Learner's Dictionary (nghĩa, IPA, audio chuẩn UK/US). Phần feedback xuất
 ra cho học viên cũng kèm link Oxford cho từng từ luyện phát âm.
+
+---
+
+## Trang luyện tập cá nhân hoá (`practice.html`)
+
+Khi feedback có lỗi từ vựng / ngữ pháp / từ phát âm, tool tự chèn một **hyperlink**
+vào cuối feedback. Học viên bấm link → mở `practice.html` — trang luyện tập riêng
+liệt kê đúng các lỗi của em đó, mỗi mục có nút **🔊 Nghe** phát âm chuẩn (đọc bằng
+giọng máy của trình duyệt), link tra Oxford và ô tick "đã luyện".
+
+Dữ liệu lỗi được mã hoá thẳng vào link (`practice.html?d=...`) — **không cần server,
+không cần database**.
+
+> ⚠️ **Để link gửi được cho học viên:** phải đăng tool lên web (vd: GitHub Pages) và
+> mở tool từ địa chỉ web đó. Link luyện tập sinh ra theo địa chỉ hiện tại — nếu mở
+> tool bằng `file://` hay `localhost` thì link chỉ chạy trên máy giáo viên.
+> Có thể rút gọn link (kể cả link rút gọn có kiếm tiền) trước khi gửi học viên.
 
 ---
 
@@ -125,8 +145,9 @@ Các hàm chính:
 | `fetchIPA()` | Tra phiên âm IPA |
 | `addErrRow()` | Thêm dòng lỗi cụ thể (LR/GRA) |
 | `dlHTML()` | Tải file .html |
-| `dlPDF()` | Mở print dialog để xuất PDF |
+| `dlPDF()` | Xuất PDF — hiện cửa sổ xem trước rồi In / Tải về (jsPDF + html2canvas) |
 | `saveDraft()` / `loadDraft()` | Lưu/mở nháp qua localStorage |
+| `autoSave()` / `restoreAutoSave()` | Tự động lưu & khôi phục khi F5 |
 | `resetAll()` | Reset form |
 | `callGemini()` | Gọi Google Gemini API |
 | `aiFixRow()` | AI gợi ý sửa 1 dòng lỗi |
@@ -159,11 +180,14 @@ const AI_PROMPTS = {
 - ✅ Tra cứu Oxford Learner's Dictionary cho từ luyện phát âm
 - ✅ Lịch sử học viên: lưu feedback từng HV, xem lại, tổng hợp điểm cả lớp
 - ✅ Nút cuộn nhanh lên đầu / xuống cuối trang
+- ✅ Trang luyện tập cá nhân hoá (`practice.html`): feedback tự kèm link để HV
+  click vào luyện lại lỗi từ vựng / ngữ pháp + nghe phát âm chuẩn (TTS)
 - ✅ Tạo feedback đầy đủ với bảng điểm + highlight màu
 - ✅ Copy feedback có định dạng (paste vào Zalo/Word/Notion)
 - ✅ Tải file .html standalone (gửi học viên)
 - ✅ Xuất PDF qua print dialog
 - ✅ Lưu / mở nháp (localStorage)
+- ✅ Tự động lưu — F5 hay đóng tab vẫn không mất dữ liệu đang nhập
 - ✅ Hỗ trợ xưng hô: em / anh / chị
 
 ---
