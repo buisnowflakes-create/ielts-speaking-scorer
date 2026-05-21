@@ -1,0 +1,776 @@
+/* ================================================================
+   app.js — IELTS Speaking Scorer
+   Toàn bộ logic: render, scoring, IPA, generate, export, draft
+   Depends on: data.js (PRESETS, ENC_LIST, BAND_SCALE, IPA_DICT)
+   ================================================================ */
+
+/* ================================================================
+   KHỞI TẠO
+   ================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('hv-date').value = todayStr();
+  renderAllLists();
+  renderBandTable();
+  updateScores();
+  initAI();
+});
+
+/* Đóng modal đang mở khi bấm phím Esc */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.show')
+      .forEach(m => m.classList.remove('show'));
+  }
+});
+
+/* ================================================================
+   RENDER CHECKLIST
+   Đọc từ PRESETS (data.js) và tạo DOM cho từng nhận xét.
+   ================================================================ */
+function renderAllLists() {
+  Object.keys(PRESETS).forEach(key => renderList(key));
+}
+
+function renderList(key) {
+  const container = document.querySelector(`[data-list="${key}"]`);
+  if (!container) return;
+  container.innerHTML = '';
+
+  const isGood = key.endsWith('-good');
+
+  PRESETS[key].forEach((item, idx) => {
+    const label = document.createElement('label');
+    label.className   = 'check-item';
+    label.htmlFor     = `${key}-${idx}`;
+    label.dataset.key = key;
+    label.dataset.idx = idx;
+
+    // Tách label khỏi nội dung để hiển thị đẹp hơn
+    const bodyText = item.t.replace(item.l + ': ', '').replace(item.l + ':', '');
+
+    label.innerHTML = `
+      <input type="checkbox" id="${key}-${idx}"
+             data-key="${key}" data-idx="${idx}" />
+      <div class="it">
+        <b>${esc(item.l)}:</b> ${esc(bodyText)}
+      </div>
+      <span class="pt-badge">${isGood ? '+1' : '-1'}</span>
+    `;
+
+    label.querySelector('input').addEventListener('change', e => {
+      label.classList.toggle(isGood ? 'chk-good' : 'chk-bad', e.target.checked);
+      updateScores();
+    });
+
+    container.appendChild(label);
+  });
+}
+
+/* ================================================================
+   CẬP NHẬT ĐIỂM (real-time)
+   Công thức: điểm = (số good ticked) - (số bad ticked), min = 0
+   ================================================================ */
+let _totalPts = 0;
+let _totalMax = 0;
+
+function updateScores() {
+  const crits = ['fc', 'lr', 'gra', 'p'];
+  let grandTotal = 0;
+  let grandMax   = 0;
+
+  crits.forEach(c => {
+    const goodChecked = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
+    const badChecked  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
+    const max         = PRESETS[`${c}-good`].length;
+    const pts         = Math.max(0, goodChecked - badChecked);
+
+    // --- Cập nhật UI sidebar badge ---
+    document.getElementById(`${c}-cur`).textContent  = pts;
+    document.getElementById(`${c}-max`).textContent  = max;
+
+    // --- Cập nhật overview cards ---
+    document.getElementById(`${c}-pts`).textContent   = pts;
+    document.getElementById(`${c}-max-d`).textContent = max;
+
+    // --- Cập nhật progress bar ---
+    const pct = max > 0 ? Math.min(100, (pts / max) * 100) : 0;
+    document.getElementById(`${c}-bar`).style.width  = pct + '%';
+    document.getElementById(`${c}-bl`).textContent   = `${pts}/${max}`;
+
+    grandTotal += pts;
+    grandMax   += max;
+  });
+
+  // --- Tổng điểm ---
+  document.getElementById('tot-pts').textContent = grandTotal;
+  document.getElementById('tot-max').textContent = grandMax;
+
+  // --- Band estimate ---
+  const ratio   = grandMax > 0 ? grandTotal / grandMax : 0;
+  const band    = calcBand(ratio);
+  const bandStr = band !== null ? band.toFixed(1) : '—';
+
+  document.getElementById('hdr-band').textContent  = bandStr;
+  document.getElementById('band-lbl').textContent  = `Band ${bandStr}`;
+  document.getElementById('band-mtr').style.width  = (ratio * 100) + '%';
+
+  updateBandHighlight(band);
+
+  // Cache cho generate()
+  _totalPts = grandTotal;
+  _totalMax = grandMax;
+}
+
+/* ================================================================
+   BAND CALCULATION & TABLE
+   ================================================================ */
+function calcBand(ratio) {
+  if (_totalMax === 0) return null;
+  for (const b of BAND_SCALE) {
+    if (ratio >= b.min) return b.band;
+  }
+  return 2.0;
+}
+
+function renderBandTable() {
+  document.getElementById('band-tbody').innerHTML = BAND_SCALE.map(b => `
+    <tr data-band="${b.band}">
+      <td>${b.band.toFixed(1)}</td>
+      <td>${Math.round(b.min * 100)}%+</td>
+      <td>${b.desc}</td>
+    </tr>
+  `).join('');
+}
+
+function updateBandHighlight(band) {
+  document.querySelectorAll('#band-tbody tr').forEach(row => {
+    row.classList.toggle('bact', parseFloat(row.dataset.band) === band);
+  });
+}
+
+/* ================================================================
+   ERROR ROWS (Lỗi từ vựng / ngữ pháp)
+   ================================================================ */
+
+/**
+ * Thêm 1 dòng lỗi vào container
+ * @param {string} containerId - 'lr-errors' hoặc 'gra-errors'
+ * @param {string} wrong       - câu/cụm sai (mặc định rỗng)
+ * @param {string} right       - câu/cụm đúng (mặc định rỗng)
+ * @param {string} note        - ghi chú/giải thích (mặc định rỗng)
+ */
+function addErrRow(containerId, wrong = '', right = '', note = '') {
+  const cont = document.getElementById(containerId);
+  const wrap = document.createElement('div');
+
+  wrap.innerHTML = `
+    <div class="err-row">
+      <input type="text" placeholder="Câu/cụm sai"
+             value="${escAttr(wrong)}" data-role="wrong" />
+      <div class="err-arr">→</div>
+      <input type="text" placeholder="Sửa lại"
+             value="${escAttr(right)}" data-role="right" />
+      <button class="btn-ai-mini" onclick="aiFixRow(this)"
+              title="AI gợi ý phần sửa cho câu sai">✨</button>
+      <button class="btn-mini"
+              onclick="this.closest('.err-row').parentElement.remove()"
+              title="Xoá">✕</button>
+    </div>
+    <div class="err-note">
+      <input type="text"
+             placeholder="Giải thích / ghi chú (không bắt buộc)"
+             value="${escAttr(note)}" data-role="note" />
+    </div>
+  `;
+
+  cont.appendChild(wrap);
+}
+
+/**
+ * Thu thập tất cả error rows trong 1 container
+ * @returns {Array<{wrong, right, note}>}
+ */
+function getErrRows(containerId) {
+  const rows = [];
+  document.querySelectorAll(`#${containerId} .err-row`).forEach(row => {
+    const wrong  = row.querySelector('[data-role="wrong"]').value.trim();
+    const right  = row.querySelector('[data-role="right"]').value.trim();
+    const noteEl = row.parentElement?.querySelector('[data-role="note"]');
+    const note   = noteEl ? noteEl.value.trim() : '';
+    if (wrong || right) rows.push({ wrong, right, note });
+  });
+  return rows;
+}
+
+/* ================================================================
+   IPA LOOKUP
+   Tra từ điển local trước (IPA_DICT), sau đó gọi API nếu không có.
+   ================================================================ */
+
+/** Tra IPA cho tất cả từ trong textarea p-words */
+async function fetchIPA() {
+  const raw = document.getElementById('p-words').value.trim();
+  if (!raw) { toast('Chưa nhập từ nào.'); return; }
+
+  const words = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  const status = document.getElementById('ipa-st');
+  status.textContent = `Đang tra ${words.length} từ...`;
+  document.getElementById('p-tags').innerHTML = '';
+
+  for (const w of words) {
+    const ipa = await lookupIPA(w);
+    addWordTag(w, ipa);
+  }
+
+  status.textContent = `✓ Đã tra ${words.length} từ`;
+  setTimeout(() => status.textContent = '', 4000);
+}
+
+/**
+ * Tra IPA cho 1 từ
+ * Ưu tiên: IPA_DICT → dictionaryapi.dev → '/?/'
+ */
+async function lookupIPA(word) {
+  const clean = word.toLowerCase().replace(/[^a-z']/g, '');
+
+  // 1. Local dictionary
+  if (IPA_DICT[clean]) return IPA_DICT[clean];
+
+  // 2. Online API (free, không cần key)
+  try {
+    const res = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const entry of (Array.isArray(data) ? data : [])) {
+        for (const p of (entry.phonetics || [])) {
+          if (p.text?.trim()) return p.text.trim();
+        }
+        if (entry.phonetic) return entry.phonetic;
+      }
+    }
+  } catch (e) { /* ignore network errors */ }
+
+  return '/?/';
+}
+
+/** Thêm 1 word tag vào #p-tags */
+function addWordTag(word, ipa) {
+  const tags = document.getElementById('p-tags');
+  const span = document.createElement('span');
+  span.className    = 'word-tag';
+  span.dataset.word = word;
+  span.dataset.ipa  = ipa || '';
+  span.innerHTML = `
+    <b>${esc(word)}</b>
+    <span class="ipa">${esc(ipa || '/?/')}</span>
+    <a class="ox-link" href="${escAttr(oxfordURL(word))}" target="_blank" rel="noopener"
+       title="Tra trên Oxford Learner's Dictionary">📖</a>
+    <button onclick="this.parentElement.remove()" title="Xoá">✕</button>
+  `;
+  tags.appendChild(span);
+}
+
+/** Lấy danh sách từ phát âm + IPA từ tags hoặc textarea */
+function getPronWords() {
+  const tags = document.querySelectorAll('#p-tags .word-tag');
+  if (tags.length) {
+    return Array.from(tags).map(t => ({ word: t.dataset.word, ipa: t.dataset.ipa }));
+  }
+  // Fallback nếu chưa tra IPA
+  const raw = document.getElementById('p-words').value.trim();
+  return raw
+    ? raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map(w => ({ word: w, ipa: '' }))
+    : [];
+}
+
+/* ================================================================
+   TẠO FEEDBACK (generate)
+   Xây dựng HTML feedback từ các checkbox đã tick + lỗi cụ thể
+   ================================================================ */
+function generate() {
+  const name    = document.getElementById('hv-name').value.trim() || 'em';
+  const cls     = document.getElementById('hv-class').value.trim();
+  const date    = document.getElementById('hv-date').value.trim();
+  const part    = document.getElementById('hv-part').value;
+  const pronoun = document.getElementById('hv-pronoun').value;
+
+  // Band
+  const ratio   = _totalMax > 0 ? _totalPts / _totalMax : 0;
+  const band    = calcBand(ratio);
+  const bandStr = band !== null ? band.toFixed(1) : 'N/A';
+
+  // Per-criterion pts
+  const crits = {};
+  ['fc', 'lr', 'gra', 'p'].forEach(c => {
+    const goodCk = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
+    const badCk  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
+    crits[c] = {
+      pts: Math.max(0, goodCk - badCk),
+      max: PRESETS[`${c}-good`].length,
+    };
+  });
+
+  let html = '';
+
+  /* ----- Header ----- */
+  html += `
+    <div class="fb-header">
+      <div class="fb-title">Feedback IELTS Speaking</div>
+      <div class="fb-meta">
+        ${name ? `<b>${esc(name)}</b>` : ''}
+        ${cls  ? ` · ${esc(cls)}`      : ''}
+        ${date ? ` · ${esc(date)}`     : ''}
+        ${part ? ` · ${esc(part)}`     : ''}
+      </div>
+      <div style="margin-top:10px">
+        <div class="fb-band-box">
+          <div class="fb-band-num">${bandStr}</div>
+          <div class="fb-band-label">Estimated Band Score</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* ----- Bảng điểm ----- */
+  const CNAMES = {
+    fc:  'Fluency &amp; Coherence',
+    lr:  'Lexical Resource',
+    gra: 'Grammatical Range &amp; Accuracy',
+    p:   'Pronunciation',
+  };
+
+  html += `
+    <table class="fb-scores-table">
+      <thead>
+        <tr><th>Tiêu chí</th><th>Điểm</th><th>Tối đa</th><th>%</th></tr>
+      </thead>
+      <tbody>
+  `;
+  ['fc', 'lr', 'gra', 'p'].forEach(c => {
+    const pct = crits[c].max > 0 ? Math.round(crits[c].pts / crits[c].max * 100) : 0;
+    html += `<tr>
+      <td>${CNAMES[c]}</td>
+      <td>${crits[c].pts}</td>
+      <td>${crits[c].max}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  });
+  const tPct = _totalMax > 0 ? Math.round(_totalPts / _totalMax * 100) : 0;
+  html += `<tr class="tr-total">
+    <td>TỔNG</td><td>${_totalPts}</td><td>${_totalMax}</td><td>${tPct}%</td>
+  </tr>`;
+  html += `</tbody></table>`;
+
+  /* ----- Lời chào ----- */
+  html += `<p style="margin-bottom:7px">Hi <b>${esc(name)}</b>! Dưới đây là feedback chi tiết cho ${esc(pronoun)} nhé:</p>`;
+
+  /* ----- 4 tiêu chí ----- */
+  const CRIT_KEYS = [
+    { id: 'fc',  label: 'FLUENCY & COHERENCE (Độ trôi chảy & mạch lạc)',    extra: 'fc-extra' },
+    { id: 'lr',  label: 'LEXICAL RESOURCE (Từ vựng)',                         extra: null       },
+    { id: 'gra', label: 'GRAMMATICAL RANGE & ACCURACY (Ngữ pháp)',           extra: null       },
+    { id: 'p',   label: 'PRONUNCIATION (Phát âm)',                            extra: null       },
+  ];
+
+  CRIT_KEYS.forEach(({ id, label, extra }) => {
+    html += `<div class="fb-section-title">${label}</div>`;
+
+    // Lấy index đã check
+    const goodIdx = [];
+    const badIdx  = [];
+    document.querySelectorAll(`input[data-key="${id}-good"]:checked`)
+      .forEach(cb => goodIdx.push(parseInt(cb.dataset.idx)));
+    document.querySelectorAll(`input[data-key="${id}-bad"]:checked`)
+      .forEach(cb => badIdx.push(parseInt(cb.dataset.idx)));
+
+    /* Điểm tốt */
+    if (goodIdx.length) {
+      html += `<div class="fb-good-title">✅ Điểm tốt:</div><ul class="fb-list">`;
+      goodIdx.forEach(i => {
+        const item = PRESETS[`${id}-good`][i];
+        if (!item) return;
+        const body = item.t.replace(item.l + ': ', '').replace(item.l + ':', '');
+        html += `<li><b>${esc(item.l)}:</b> ${esc(body)}</li>`;
+      });
+      html += `</ul>`;
+    }
+
+    /* Cần cải thiện */
+    if (badIdx.length) {
+      html += `<div class="fb-bad-title">⚠ Cần cải thiện:</div><ul class="fb-list">`;
+      badIdx.forEach(i => {
+        const item = PRESETS[`${id}-bad`][i];
+        if (!item) return;
+        const body = item.t.replace(item.l + ': ', '').replace(item.l + ':', '');
+        html += `<li><b>${esc(item.l)}:</b> ${esc(body)}</li>`;
+      });
+      html += `</ul>`;
+    }
+
+    /* FC extra note */
+    if (extra) {
+      const exTxt = document.getElementById(extra)?.value.trim();
+      if (exTxt) {
+        html += `<ul class="fb-list">`;
+        exTxt.split('\n').forEach(line => {
+          const t = line.trim();
+          if (t) html += `<li>${esc(t)}</li>`;
+        });
+        html += `</ul>`;
+      }
+    }
+
+    /* LR: lỗi từ vựng cụ thể */
+    if (id === 'lr') {
+      const errs = getErrRows('lr-errors');
+      if (errs.length) {
+        html += `<div class="fb-bad-title">📝 Lỗi từ vựng / collocation:</div><ul class="fb-list">`;
+        errs.forEach(e => {
+          html += '<li>';
+          if (e.wrong) html += `<span class="fb-err-mark">${esc(e.wrong)}</span> → `;
+          html += `<span class="fb-fix-mark">${esc(e.right)}</span>`;
+          if (e.note)  html += `<br/><span class="fb-note">(${esc(e.note)})</span>`;
+          html += '</li>';
+        });
+        html += `</ul>`;
+      }
+    }
+
+    /* GRA: lỗi ngữ pháp cụ thể */
+    if (id === 'gra') {
+      const errs = getErrRows('gra-errors');
+      if (errs.length) {
+        html += `<div class="fb-bad-title">📝 Lỗi ngữ pháp cụ thể:</div><ul class="fb-list">`;
+        errs.forEach(e => {
+          html += '<li>';
+          if (e.wrong) html += `<span class="fb-err-mark">${esc(e.wrong)}</span> → `;
+          html += `<span class="fb-fix-mark">${esc(e.right)}</span>`;
+          if (e.note)  html += `<br/><span class="fb-note">(${esc(e.note)})</span>`;
+          html += '</li>';
+        });
+        html += `</ul>`;
+      }
+    }
+
+    /* P: từ phát âm + ghi chú khác */
+    if (id === 'p') {
+      const pWords = getPronWords();
+      if (pWords.length) {
+        html += `<div class="fb-bad-title">🔊 Từ cần luyện phát âm:</div><ul class="fb-list">`;
+        pWords.forEach(w => {
+          const hasIpa = w.ipa && w.ipa.trim() && w.ipa !== '/?/';
+          html += `<li><a class="fb-word-link" href="${escAttr(oxfordURL(w.word))}"`
+                +  ` target="_blank" rel="noopener" title="Tra Oxford Learner's Dictionary">`
+                +  `<span class="fb-word-mark">${esc(w.word)}</span> 📖</a>`;
+          if (hasIpa) html += ` → <span class="fb-ipa-mark">${esc(w.ipa)}</span>`;
+          html += `</li>`;
+        });
+        html += `</ul>`;
+      }
+
+      const pExtra = document.getElementById('p-extra')?.value.trim();
+      if (pExtra) {
+        html += `<div class="fb-bad-title">📌 Ghi chú phát âm khác:</div><ul class="fb-list">`;
+        pExtra.split('\n').forEach(line => {
+          const t = line.trim();
+          if (t) html += `<li>${esc(t)}</li>`;
+        });
+        html += `</ul>`;
+      }
+    }
+  });
+
+  /* ----- Câu động viên ----- */
+  const enc = document.getElementById('encourage').value.trim();
+  if (enc) {
+    html += `<div class="fb-encourage">${esc(enc).replace(/\n/g, '<br/>')}</div>`;
+  }
+
+  /* ----- Áp dụng xưng hô ----- */
+  if (pronoun && pronoun !== 'em') {
+    const cap = pronoun[0].toUpperCase() + pronoun.slice(1);
+    // Chỉ thay ở text nodes (an toàn hơn replaceAll trên raw HTML)
+    html = html
+      .replace(/\bEm\b/g, cap)
+      .replace(/\bem\b/g, pronoun);
+  }
+
+  document.getElementById('preview').innerHTML = html;
+  toast('✅ Đã tạo feedback thành công!');
+}
+
+/* ================================================================
+   COPY / EXPORT
+   ================================================================ */
+
+/** Copy feedback có định dạng (HTML + fallback text) vào clipboard */
+function copyHTML() {
+  const el = document.getElementById('preview');
+  if (el.querySelector('.empty-state')) { toast('Chưa có feedback.'); return; }
+
+  const blob = new Blob([el.innerHTML], { type: 'text/html' });
+  const data = [
+    new ClipboardItem({
+      'text/html':  blob,
+      'text/plain': new Blob([el.innerText], { type: 'text/plain' }),
+    }),
+  ];
+
+  navigator.clipboard.write(data).then(
+    () => toast('✅ Đã copy! Paste vào Zalo/Word/Email để giữ định dạng.'),
+    () => {
+      // Fallback: select + copy
+      const r = document.createRange();
+      r.selectNode(el);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(r);
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+      toast('✅ Đã copy!');
+    }
+  );
+}
+
+/** Tải feedback dưới dạng file .html (standalone, không cần server) */
+function dlHTML() {
+  const el = document.getElementById('preview');
+  if (el.querySelector('.empty-state')) { toast('Hãy tạo feedback trước.'); return; }
+
+  const name  = document.getElementById('hv-name').value.trim() || 'student';
+  const fname = `Feedback_Speaking_${name.replace(/\s+/g, '_')}_${todayStr().replace(/\//g, '-')}.html`;
+
+  // CSS nhúng vào file export (light theme, không cần dark mode)
+  const exportCSS = `
+    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 20px; line-height: 1.7; color: #1f2937; }
+    .fb-title      { font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: #9a0c23; }
+    .fb-meta       { font-size: 12px; color: #6b7280; margin-top: 3px; font-family: monospace; }
+    .fb-header     { border-bottom: 2px solid #ffd6dc; padding-bottom: 13px; margin-bottom: 15px; }
+    .fb-band-box   { display: inline-flex; flex-direction: column; align-items: center; background: #fef9ec; border: 2px solid #d4a017; border-radius: 12px; padding: 8px 18px; margin-top: 10px; }
+    .fb-band-num   { font-family: Georgia, serif; font-size: 36px; font-weight: 900; color: #b8860b; line-height: 1; }
+    .fb-band-label { font-size: 10px; color: #8a6d00; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+    .fb-section-title { font-family: Georgia, serif; font-size: 13.5px; font-weight: 700; color: #9a0c23; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid #ffd6dc; padding-bottom: 3px; margin: 18px 0 9px; }
+    .fb-good-title { color: #15803d; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
+    .fb-bad-title  { color: #b45309; font-size: 12px; font-weight: 700; margin: 9px 0 3px; }
+    .fb-list       { padding-left: 17px; margin: 3px 0 7px; }
+    .fb-list li    { margin-bottom: 3px; font-size: 13px; }
+    .fb-err-mark   { color: #dc2626; text-decoration: line-through; background: #fee2e2; padding: 1px 4px; border-radius: 3px; font-size: 12.5px; }
+    .fb-fix-mark   { color: #16a34a; background: #dcfce7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12.5px; }
+    .fb-ipa-mark   { color: #c8102e; font-weight: 600; font-family: monospace; }
+    .fb-word-mark  { background: #fef3c7; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 12.5px; }
+    .fb-word-link  { text-decoration: none; color: inherit; }
+    .fb-note       { color: #6b7280; font-style: italic; font-size: 12px; }
+    .fb-encourage  { margin-top: 16px; padding: 12px 14px; background: #fff0f2; border-left: 4px solid #c8102e; border-radius: 6px; font-style: italic; color: #9a0c23; font-size: 13px; }
+    .fb-scores-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 11px 0; font-family: monospace; }
+    .fb-scores-table th { background: #fff0f2; color: #9a0c23; padding: 5px 9px; text-align: left; font-size: 10px; text-transform: uppercase; }
+    .fb-scores-table td { padding: 5px 9px; border-bottom: 1px solid #e5e7eb; color: #4b5563; }
+    .fb-scores-table .tr-total td { font-weight: 700; background: #fef9ec; color: #8a6d00; }
+  `;
+
+  const doc = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Feedback Speaking – ${esc(name)}</title>
+  <style>${exportCSS}</style>
+</head>
+<body>
+  ${el.innerHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([doc], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  toast('✅ Đã tải file .html!');
+}
+
+/**
+ * Xuất PDF bằng print dialog của trình duyệt.
+ * CSS @media print trong style.css đã ẩn form, chỉ in preview.
+ * Người dùng chọn "Save as PDF" trong hộp thoại in.
+ */
+function dlPDF() {
+  const el = document.getElementById('preview');
+  if (el.querySelector('.empty-state')) { toast('Hãy tạo feedback trước.'); return; }
+  toast('🖨 Đang mở hộp thoại in PDF...');
+  setTimeout(() => window.print(), 400);
+}
+
+/* ================================================================
+   LƯU / MỞ NHÁP
+   Dùng localStorage để lưu trạng thái form.
+   ================================================================ */
+const DRAFT_KEY = 'ielts_scorer_draft_v1';
+
+/** Lưu toàn bộ trạng thái form vào localStorage */
+function saveDraft() {
+  try {
+    // Thu thập checkbox đã tích
+    const checked = {};
+    document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+      const k = cb.dataset.key;
+      if (!k) return;
+      if (!checked[k]) checked[k] = [];
+      checked[k].push(parseInt(cb.dataset.idx));
+    });
+
+    const draft = {
+      name:     document.getElementById('hv-name').value,
+      cls:      document.getElementById('hv-class').value,
+      date:     document.getElementById('hv-date').value,
+      part:     document.getElementById('hv-part').value,
+      pronoun:  document.getElementById('hv-pronoun').value,
+      fcExtra:  document.getElementById('fc-extra').value,
+      pWords:   document.getElementById('p-words').value,
+      pExtra:   document.getElementById('p-extra').value,
+      encourage:document.getElementById('encourage').value,
+      lrErrors: getErrRows('lr-errors'),
+      graErrors:getErrRows('gra-errors'),
+      pTags:    Array.from(document.querySelectorAll('#p-tags .word-tag'))
+                     .map(t => ({ word: t.dataset.word, ipa: t.dataset.ipa })),
+      checked,
+    };
+
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    toast('✅ Đã lưu nháp!');
+  } catch (e) {
+    toast('❌ Không lưu được: ' + e.message);
+  }
+}
+
+/** Khôi phục form từ nháp đã lưu */
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) { toast('Chưa có nháp lưu.'); return; }
+    const d = JSON.parse(raw);
+
+    // Thông tin học viên
+    document.getElementById('hv-name').value    = d.name    || '';
+    document.getElementById('hv-class').value   = d.cls     || '';
+    document.getElementById('hv-date').value    = d.date    || todayStr();
+    document.getElementById('fc-extra').value   = d.fcExtra || '';
+    document.getElementById('p-words').value    = d.pWords  || '';
+    document.getElementById('p-extra').value    = d.pExtra  || '';
+    document.getElementById('encourage').value  = d.encourage || ENC_LIST[0];
+    if (d.part)    document.getElementById('hv-part').value    = d.part;
+    if (d.pronoun) document.getElementById('hv-pronoun').value = d.pronoun;
+
+    // Khôi phục checkboxes
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.check-item')?.classList.remove('chk-good', 'chk-bad');
+    });
+    Object.entries(d.checked || {}).forEach(([k, idxArr]) => {
+      const isGood = k.endsWith('-good');
+      idxArr.forEach(idx => {
+        const cb = document.querySelector(`input[data-key="${k}"][data-idx="${idx}"]`);
+        if (cb) {
+          cb.checked = true;
+          cb.closest('.check-item')?.classList.add(isGood ? 'chk-good' : 'chk-bad');
+        }
+      });
+    });
+
+    // Khôi phục error rows
+    document.getElementById('lr-errors').innerHTML  = '';
+    document.getElementById('gra-errors').innerHTML = '';
+    (d.lrErrors  || []).forEach(e => addErrRow('lr-errors',  e.wrong, e.right, e.note));
+    (d.graErrors || []).forEach(e => addErrRow('gra-errors', e.wrong, e.right, e.note));
+
+    // Khôi phục pronunciation tags
+    document.getElementById('p-tags').innerHTML = '';
+    (d.pTags || []).forEach(t => addWordTag(t.word, t.ipa));
+
+    updateScores();
+    toast('✅ Đã mở nháp!');
+  } catch (e) {
+    toast('❌ Lỗi khi mở nháp: ' + e.message);
+  }
+}
+
+/** Reset toàn bộ form về trạng thái ban đầu */
+function resetAll() {
+  if (!confirm('Reset toàn bộ form về trạng thái ban đầu?')) return;
+
+  // Clear checkboxes
+  document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.check-item')?.classList.remove('chk-good', 'chk-bad');
+  });
+
+  // Clear text inputs
+  ['hv-name', 'hv-class', 'fc-extra', 'p-words', 'p-extra'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Reset date, encouragement
+  document.getElementById('hv-date').value    = todayStr();
+  document.getElementById('encourage').value  = ENC_LIST[0];
+
+  // Clear error rows & tags
+  document.getElementById('lr-errors').innerHTML  = '';
+  document.getElementById('gra-errors').innerHTML = '';
+  document.getElementById('p-tags').innerHTML     = '';
+
+  // Clear preview
+  document.getElementById('preview').innerHTML = `
+    <div class="empty-state">
+      <div class="ei">✏️</div>
+      Tích chọn nhận xét rồi bấm<br />
+      <b>✨ Tạo Feedback</b>
+    </div>
+  `;
+
+  updateScores();
+  toast('🔄 Đã reset!');
+}
+
+/* ================================================================
+   ENCOURAGEMENT PRESETS
+   ================================================================ */
+function setEnc(i) {
+  document.getElementById('encourage').value = ENC_LIST[i] || ENC_LIST[0];
+}
+
+/* ================================================================
+   UTILITY HELPERS
+   ================================================================ */
+
+/** Ngày hôm nay dạng dd/mm/yyyy (vi-VN) */
+function todayStr() {
+  return new Date().toLocaleDateString('vi-VN');
+}
+
+/** Escape HTML entities để tránh XSS */
+function esc(s) {
+  return String(s == null ? '' : s).replace(
+    /[&<>"]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]
+  );
+}
+
+/** Escape dùng trong attribute (thêm escape cho dấu nháy đơn) */
+function escAttr(s) {
+  return esc(s).replace(/'/g, '&#39;');
+}
+
+/** Hiển thị toast notification */
+let _toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IELTS Speaking Scorer – LangGo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <div class="brand">
+    <div class="brand-icon">🎓</div>
+    <div>
+      <h1>IELTS Speaking <span>Scorer</span></h1>
+      <div class="sub">Chấm điểm checkbox · Tạo feedback · Xuất HTML / PDF</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <button class="hdr-ai-btn" id="ai-btn" onclick="openAIModal()" title="Cài đặt Trợ lý AI (Gemini)">
+      <span class="dot"></span> 🤖 Trợ lý AI
+    </button>
+    <div class="band-pill">
+      <div class="num" id="hdr-band">—</div>
+      <div class="lbl">Band Score</div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== MAIN WRAPPER ===== -->
+<div class="wrap">
+
+  <!-- ===== INPUT PANE ===== -->
+  <div class="input-pane">
+
+    <!-- Thông tin học viên -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-info">👤</div>
+          <div>
+            <h2>Thông tin học viên</h2>
+            <div class="hsub">Student info</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div>
+            <label class="field-label">Tên học viên</label>
+            <input type="text" id="hv-name" placeholder="VD: Nguyễn Minh Anh" />
+          </div>
+          <div>
+            <label class="field-label">Lớp / Class</label>
+            <input type="text" id="hv-class" placeholder="VD: IELTS-B2" />
+          </div>
+          <div>
+            <label class="field-label">Ngày</label>
+            <input type="text" id="hv-date" />
+          </div>
+        </div>
+        <div class="row-2" style="margin-top: 11px">
+          <div>
+            <label class="field-label">Part / Bài thi</label>
+            <select id="hv-part">
+              <option>Full Speaking (3 parts)</option>
+              <option>Part 1 only</option>
+              <option>Part 2 only</option>
+              <option>Part 3 only</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Xưng hô</label>
+            <select id="hv-pronoun">
+              <option value="em">em</option>
+              <option value="anh">anh</option>
+              <option value="chị">chị</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bảng điểm tổng quan -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-gold">📊</div>
+          <div>
+            <h2>Bảng điểm tổng quan</h2>
+            <div class="hsub">Live score dashboard</div>
+          </div>
+        </div>
+        <div class="score-badge">
+          Tổng: <span class="cur" id="tot-pts">0</span>
+          <span class="mx">/ <span id="tot-max">0</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Mini score cards -->
+        <div class="ov-grid">
+          <div class="ov-card">
+            <div class="on">FC</div>
+            <div class="op op-fc" id="fc-pts">0</div>
+            <div class="om">/ <span id="fc-max-d">0</span></div>
+          </div>
+          <div class="ov-card">
+            <div class="on">LR</div>
+            <div class="op op-lr" id="lr-pts">0</div>
+            <div class="om">/ <span id="lr-max-d">0</span></div>
+          </div>
+          <div class="ov-card">
+            <div class="on">GRA</div>
+            <div class="op op-gra" id="gra-pts">0</div>
+            <div class="om">/ <span id="gra-max-d">0</span></div>
+          </div>
+          <div class="ov-card">
+            <div class="on">PRON</div>
+            <div class="op op-p" id="p-pts">0</div>
+            <div class="om">/ <span id="p-max-d">0</span></div>
+          </div>
+        </div>
+        <!-- Progress bars -->
+        <div class="bar-wrap">
+          <div class="bar-label">
+            <span class="bn">Fluency &amp; Coherence</span>
+            <span class="bp" id="fc-bl">0/0</span>
+          </div>
+          <div class="bar"><div class="bar-fill bf-fc" id="fc-bar" style="width:0%"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label">
+            <span class="bn">Lexical Resource</span>
+            <span class="bp" id="lr-bl">0/0</span>
+          </div>
+          <div class="bar"><div class="bar-fill bf-lr" id="lr-bar" style="width:0%"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label">
+            <span class="bn">Grammatical Range &amp; Accuracy</span>
+            <span class="bp" id="gra-bl">0/0</span>
+          </div>
+          <div class="bar"><div class="bar-fill bf-gra" id="gra-bar" style="width:0%"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label">
+            <span class="bn">Pronunciation</span>
+            <span class="bp" id="p-bl">0/0</span>
+          </div>
+          <div class="bar"><div class="bar-fill bf-p" id="p-bar" style="width:0%"></div></div>
+        </div>
+        <!-- Band meter -->
+        <div style="margin-top: 4px">
+          <div class="bar-label" style="margin-bottom: 3px">
+            <span class="bn" style="font-size:11px;color:var(--text-muted)">Band estimate</span>
+            <span class="bp" id="band-lbl">—</span>
+          </div>
+          <div class="band-meter">
+            <div class="band-meter-fill" id="band-mtr" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. Fluency & Coherence -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-fc">🌊</div>
+          <div>
+            <h2>1. Fluency &amp; Coherence</h2>
+            <div class="hsub">Độ trôi chảy &amp; mạch lạc</div>
+          </div>
+        </div>
+        <div class="score-badge">
+          <span class="cur" id="fc-cur">0</span>
+          <span class="mx">/ <span id="fc-max">0</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sec-label good">✦ Điểm tốt (+1 mỗi tick)</div>
+        <div class="check-list" data-list="fc-good"></div>
+
+        <div class="sec-label bad" style="margin-top: 13px">✦ Cần cải thiện (-1 mỗi tick)</div>
+        <div class="check-list" data-list="fc-bad"></div>
+
+        <div style="margin-top: 11px">
+          <label class="field-label">Ghi chú thêm (FC)</label>
+          <textarea id="fc-extra" rows="2"
+            placeholder="VD: linking words em đã dùng: moreover, however..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Lexical Resource -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-lr">📚</div>
+          <div>
+            <h2>2. Lexical Resource</h2>
+            <div class="hsub">Từ vựng</div>
+          </div>
+        </div>
+        <div class="score-badge">
+          <span class="cur" id="lr-cur">0</span>
+          <span class="mx">/ <span id="lr-max">0</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sec-label good">✦ Điểm tốt (+1)</div>
+        <div class="check-list" data-list="lr-good"></div>
+
+        <div class="sec-label bad" style="margin-top: 13px">✦ Cần cải thiện (-1)</div>
+        <div class="check-list" data-list="lr-bad"></div>
+
+        <div style="margin-top: 13px">
+          <label class="field-label">Lỗi từ vựng / collocation</label>
+          <div id="lr-errors"></div>
+          <div class="err-actions">
+            <button class="btn-ghost" onclick="addErrRow('lr-errors')">+ Thêm lỗi từ vựng</button>
+            <button class="btn-ai-mini" onclick="openScanModal('vocab')">✨ AI quét lỗi từ transcript</button>
+          </div>
+          <div class="ai-tip">💡 Gõ câu sai vào dòng lỗi rồi bấm <b>✨</b> để AI tự điền phần sửa &amp; giải thích.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Grammatical Range & Accuracy -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-gra">⚙️</div>
+          <div>
+            <h2>3. Grammatical Range &amp; Accuracy</h2>
+            <div class="hsub">Ngữ pháp</div>
+          </div>
+        </div>
+        <div class="score-badge">
+          <span class="cur" id="gra-cur">0</span>
+          <span class="mx">/ <span id="gra-max">0</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sec-label good">✦ Điểm tốt (+1)</div>
+        <div class="check-list" data-list="gra-good"></div>
+
+        <div class="sec-label bad" style="margin-top: 13px">✦ Cần cải thiện (-1)</div>
+        <div class="check-list" data-list="gra-bad"></div>
+
+        <div style="margin-top: 13px">
+          <label class="field-label">Lỗi ngữ pháp cụ thể</label>
+          <div id="gra-errors"></div>
+          <div class="err-actions">
+            <button class="btn-ghost" onclick="addErrRow('gra-errors')">+ Thêm lỗi ngữ pháp</button>
+            <button class="btn-ai-mini" onclick="openScanModal('grammar')">✨ AI quét lỗi từ transcript</button>
+          </div>
+          <div class="ai-tip">💡 Gõ câu sai vào dòng lỗi rồi bấm <b>✨</b> để AI tự điền phần sửa &amp; giải thích.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Pronunciation -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-p">🔊</div>
+          <div>
+            <h2>4. Pronunciation</h2>
+            <div class="hsub">Phát âm</div>
+          </div>
+        </div>
+        <div class="score-badge">
+          <span class="cur" id="p-cur">0</span>
+          <span class="mx">/ <span id="p-max">0</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sec-label good">✦ Điểm tốt (+1)</div>
+        <div class="check-list" data-list="p-good"></div>
+
+        <div class="sec-label bad" style="margin-top: 13px">✦ Cần cải thiện (-1)</div>
+        <div class="check-list" data-list="p-bad"></div>
+
+        <div style="margin-top: 13px">
+          <label class="field-label">Từ phát âm chưa đúng</label>
+          <textarea id="p-words" rows="2"
+            placeholder="VD: comfortable, environment, pronunciation, schedule"></textarea>
+          <div style="margin-top: 5px; display: flex; gap: 6px; align-items: center">
+            <button class="btn-mini" onclick="fetchIPA()">🔍 Tra IPA</button>
+            <span id="ipa-st" style="font-size:10.5px;color:var(--text-muted);font-style:italic"></span>
+          </div>
+          <div class="word-tags" id="p-tags"></div>
+
+          <div style="margin-top: 9px">
+            <label class="field-label">Ghi chú phát âm khác (nối âm, âm cuối, ngữ điệu...)</label>
+            <textarea id="p-extra" rows="2"
+              placeholder="VD: Âm cuối -ed chưa rõ&#10;Nối âm: love it, which is"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Câu động viên -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-gold">💬</div>
+          <div><h2>Câu động viên cuối bài</h2></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <textarea id="encourage" rows="3">Em đọc lại feedback thật kỹ và note các điểm cần cải thiện vào sổ nhé. Sau đó luyện tập đều đặn mỗi ngày — đây là cách hiệu quả nhất để tiến bộ. Cố gắng nhé em!</textarea>
+        <div style="margin-top: 7px; display: flex; gap: 5px; flex-wrap: wrap">
+          <button class="btn-mini" onclick="setEnc(0)">Mẫu 1</button>
+          <button class="btn-mini" onclick="setEnc(1)">Mẫu 2</button>
+          <button class="btn-mini" onclick="setEnc(2)">Mẫu 3</button>
+          <button class="btn-mini" onclick="setEnc(3)">Mẫu 4</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Band Reference Table -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-left">
+          <div class="crit-icon ci-info">📈</div>
+          <div><h2>Band Score Reference</h2></div>
+        </div>
+      </div>
+      <div class="card-body" style="padding: 0">
+        <table class="band-table">
+          <thead>
+            <tr><th>Band</th><th>Tỉ lệ điểm</th><th>Mô tả</th></tr>
+          </thead>
+          <tbody id="band-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="generate()">✨ Tạo Feedback</button>
+      <button class="btn btn-secondary" onclick="resetAll()">🔄 Reset</button>
+      <button class="btn btn-secondary" onclick="saveDraft()">💾 Lưu nháp</button>
+      <button class="btn btn-secondary" onclick="loadDraft()">📂 Mở nháp</button>
+    </div>
+
+  </div><!-- /input-pane -->
+
+  <!-- ===== PREVIEW PANE ===== -->
+  <div class="preview-pane">
+    <div class="preview-actions btn-row" style="margin-bottom: 9px; margin-top: 0">
+      <button class="btn btn-primary" onclick="copyHTML()">📋 Copy Feedback</button>
+      <button class="btn btn-ai" onclick="aiPolish(this)">✨ AI trau chuốt</button>
+      <button class="btn btn-secondary" onclick="dlHTML()">⬇ Tải .html</button>
+      <button class="btn btn-secondary" onclick="dlPDF()">🖨 Xuất PDF</button>
+    </div>
+    <div class="preview-box" id="preview">
+      <div class="empty-state">
+        <div class="ei">✏️</div>
+        Tích chọn nhận xét rồi bấm<br />
+        <b>✨ Tạo Feedback</b>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== MODAL: Cài đặt Trợ lý AI ===== -->
+<div class="modal-overlay" id="ai-modal" onclick="if(event.target===this)closeModal('ai-modal')">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>🤖 Trợ lý AI — Google Gemini</h3>
+      <button class="modal-x" onclick="closeModal('ai-modal')" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field-label">Gemini API Key</label>
+      <input type="password" id="ai-key" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+
+      <label class="field-label" style="margin-top: 12px">Model</label>
+      <select id="ai-model"></select>
+
+      <div style="margin-top: 10px; display: flex; gap: 7px; align-items: center; flex-wrap: wrap">
+        <button class="btn-mini" onclick="aiTest(this)">🧪 Kiểm tra kết nối</button>
+        <span id="ai-test-st" style="font-size: 11px"></span>
+      </div>
+
+      <div class="ai-hint">
+        🔑 Lấy API key <b>miễn phí</b> tại
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a><br />
+        🔒 Key chỉ lưu trong trình duyệt này (localStorage) — không gửi đi đâu ngoài Google.<br />
+        🤖 Trợ lý AI giúp: gợi ý sửa lỗi theo dòng, quét lỗi từ transcript, và trau chuốt feedback.
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('ai-modal')">Đóng</button>
+        <button class="btn btn-ai" onclick="saveAISettings()">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: AI quét lỗi từ transcript ===== -->
+<div class="modal-overlay" id="scan-modal" onclick="if(event.target===this)closeModal('scan-modal')">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="scan-title">✨ AI quét lỗi</h3>
+      <button class="modal-x" onclick="closeModal('scan-modal')" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field-label">Phần nói / transcript của học viên</label>
+      <textarea id="scan-text" rows="8"
+        placeholder="Dán đoạn học viên nói vào đây — AI sẽ tự tìm lỗi và điền vào danh sách lỗi cụ thể..."></textarea>
+      <div class="ai-hint" id="scan-hint"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('scan-modal')">Đóng</button>
+        <button class="btn btn-ai" onclick="runScan(this)">✨ Tìm lỗi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
