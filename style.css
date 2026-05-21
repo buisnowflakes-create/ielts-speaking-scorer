@@ -45,7 +45,7 @@
 html  { scroll-behavior: smooth; }
 body  {
   font-family: Arial, Helvetica, sans-serif;
-  background: linear-gradient(180deg, #f8f9fb 0%, #e9ebef 100%);
+  background: linear-gradient(145deg, #e6edfd 0%, #edecfb 55%, #fcedf3 100%);
   background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;

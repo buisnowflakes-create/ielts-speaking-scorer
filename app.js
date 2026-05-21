@@ -243,7 +243,6 @@ function generate() {
   const name    = document.getElementById('hv-name').value.trim() || 'em';
   const cls     = document.getElementById('hv-class').value.trim();
   const date    = fmtDate(document.getElementById('hv-date').value);
-  const part    = document.getElementById('hv-part').value;
   const pronoun = document.getElementById('hv-pronoun').value;
 
   let html = '';
@@ -256,7 +255,6 @@ function generate() {
         ${name ? `<b>${esc(name)}</b>` : ''}
         ${cls  ? ` · ${esc(cls)}`      : ''}
         ${date ? ` · ${esc(date)}`     : ''}
-        ${part ? ` · ${esc(part)}`     : ''}
       </div>
     </div>
   `;
@@ -506,7 +504,6 @@ function saveDraft() {
       name:     document.getElementById('hv-name').value,
       cls:      document.getElementById('hv-class').value,
       date:     document.getElementById('hv-date').value,
-      part:     document.getElementById('hv-part').value,
       pronoun:  document.getElementById('hv-pronoun').value,
       fcExtra:  document.getElementById('fc-extra').value,
       pWords:   document.getElementById('p-words').value,
@@ -541,7 +538,6 @@ function loadDraft() {
     document.getElementById('p-words').value    = d.pWords  || '';
     document.getElementById('p-extra').value    = d.pExtra  || '';
     document.getElementById('encourage').value  = d.encourage || ENC_LIST[0];
-    if (d.part)    document.getElementById('hv-part').value    = d.part;
     if (d.pronoun) document.getElementById('hv-pronoun').value = d.pronoun;
 
     // Khôi phục checkboxes
@@ -1014,7 +1010,6 @@ function saveToHistory() {
     name:     name,
     cls:      document.getElementById('hv-class').value.trim(),
     date:     document.getElementById('hv-date').value.trim(),
-    part:     document.getElementById('hv-part').value,
     savedAt:  new Date().toISOString(),
     scores:   getCritCounts(),
     feedbackHTML: feedbackHTML,
