@@ -10,7 +10,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('hv-date').value = todayStr();
   renderAllLists();
-  renderBandTable();
   updateScores();
   initAI();
 });
@@ -95,14 +94,10 @@ function updateScores() {
   // Cache cho generate()
   _totalPts = grandTotal;
   _totalMax = grandMax;
-
-  // --- Band estimate (highlight dòng trong bảng Band Reference) ---
-  const ratio = grandMax > 0 ? grandTotal / grandMax : 0;
-  updateBandHighlight(calcBand(ratio));
 }
 
 /* ================================================================
-   BAND CALCULATION & TABLE
+   BAND CALCULATION
    ================================================================ */
 function calcBand(ratio) {
   if (_totalMax === 0) return null;
@@ -110,22 +105,6 @@ function calcBand(ratio) {
     if (ratio >= b.min) return b.band;
   }
   return 2.0;
-}
-
-function renderBandTable() {
-  document.getElementById('band-tbody').innerHTML = BAND_SCALE.map(b => `
-    <tr data-band="${b.band}">
-      <td>${b.band.toFixed(1)}</td>
-      <td>${Math.round(b.min * 100)}%+</td>
-      <td>${b.desc}</td>
-    </tr>
-  `).join('');
-}
-
-function updateBandHighlight(band) {
-  document.querySelectorAll('#band-tbody tr').forEach(row => {
-    row.classList.toggle('bact', parseFloat(row.dataset.band) === band);
-  });
 }
 
 /* ================================================================
@@ -317,17 +296,6 @@ function generate() {
   const band    = calcBand(ratio);
   const bandStr = band !== null ? band.toFixed(1) : 'N/A';
 
-  // Per-criterion pts
-  const crits = {};
-  ['fc', 'lr', 'gra', 'p'].forEach(c => {
-    const goodCk = document.querySelectorAll(`input[data-key="${c}-good"]:checked`).length;
-    const badCk  = document.querySelectorAll(`input[data-key="${c}-bad"]:checked`).length;
-    crits[c] = {
-      pts: Math.max(0, goodCk - badCk),
-      max: PRESETS[`${c}-good`].length,
-    };
-  });
-
   let html = '';
 
   /* ----- Header ----- */
@@ -348,36 +316,6 @@ function generate() {
       </div>
     </div>
   `;
-
-  /* ----- Bảng điểm ----- */
-  const CNAMES = {
-    fc:  'Fluency &amp; Coherence',
-    lr:  'Lexical Resource',
-    gra: 'Grammatical Range &amp; Accuracy',
-    p:   'Pronunciation',
-  };
-
-  html += `
-    <table class="fb-scores-table">
-      <thead>
-        <tr><th>Tiêu chí</th><th>Điểm</th><th>Tối đa</th><th>%</th></tr>
-      </thead>
-      <tbody>
-  `;
-  ['fc', 'lr', 'gra', 'p'].forEach(c => {
-    const pct = crits[c].max > 0 ? Math.round(crits[c].pts / crits[c].max * 100) : 0;
-    html += `<tr>
-      <td>${CNAMES[c]}</td>
-      <td>${crits[c].pts}</td>
-      <td>${crits[c].max}</td>
-      <td>${pct}%</td>
-    </tr>`;
-  });
-  const tPct = _totalMax > 0 ? Math.round(_totalPts / _totalMax * 100) : 0;
-  html += `<tr class="tr-total">
-    <td>TỔNG</td><td>${_totalPts}</td><td>${_totalMax}</td><td>${tPct}%</td>
-  </tr>`;
-  html += `</tbody></table>`;
 
   /* ----- Lời chào ----- */
   html += `<p style="margin-bottom:7px">Hi <b>${esc(name)}</b>! Dưới đây là feedback chi tiết cho ${esc(pronoun)} nhé:</p>`;
@@ -566,10 +504,6 @@ function dlHTML() {
     .fb-word-link  { text-decoration: none; color: inherit; }
     .fb-note       { color: #6b7280; font-style: italic; font-size: 12px; }
     .fb-encourage  { margin-top: 16px; padding: 12px 14px; background: #fff0f2; border-left: 4px solid #c8102e; border-radius: 6px; font-style: italic; color: #9a0c23; font-size: 13px; }
-    .fb-scores-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 11px 0; font-family: Arial, Helvetica, sans-serif; }
-    .fb-scores-table th { background: #fff0f2; color: #9a0c23; padding: 5px 9px; text-align: left; font-size: 10px; text-transform: uppercase; }
-    .fb-scores-table td { padding: 5px 9px; border-bottom: 1px solid #e5e7eb; color: #4b5563; }
-    .fb-scores-table .tr-total td { font-weight: 700; background: #fef9ec; color: #8a6d00; }
   `;
 
   const doc = `<!DOCTYPE html>
